@@ -2,18 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 250 250 252;
-  --foreground: 17 24 39;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: 9 9 11;
-    --foreground: 244 244 245;
-  }
-}
-
 html,
 body,
 #root {
@@ -22,8 +10,52 @@ body,
 
 body {
   margin: 0;
-  background: rgb(var(--background));
-  color: rgb(var(--foreground));
+  background: #ffffff;
+  color: #18181b;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* iOS güvenli alanlar */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* iOS'ta input zoom'u engelle (16px+ font) */
+input,
+select,
+textarea,
+button {
+  font-size: 16px;
+}
+
+/* Safari'de buton/varsayılan stiller */
+button {
+  -webkit-appearance: none;
+}
+
+/* Range slider mobile */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #e4e4e7;
+  border-radius: 999px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: #18181b;
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: #18181b;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
 }

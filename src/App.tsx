@@ -1,38 +1,87 @@
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { AuthProvider, useAuth } from "./auth/AuthContext";
+import HomePage from "./pages/Home";
+import NewRoomPage from "./pages/NewRoom";
+import RoomListPage from "./pages/RoomList";
+import RoomDetailPage from "./pages/RoomDetail";
+import NewPanelPage from "./pages/NewPanel";
+import PanelDetailPage from "./pages/PanelDetail";
+import NewDrawingPage from "./pages/NewDrawing";
+
 export default function App() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-16 sm:px-10">
-      <section className="w-full max-w-2xl text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200/60 bg-white/60 px-3 py-1 text-xs font-medium uppercase tracking-wider text-zinc-600 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          Çalışıyor
-        </span>
-
-        <h1 className="mt-6 bg-gradient-to-br from-zinc-900 to-zinc-600 bg-clip-text text-4xl font-bold leading-tight tracking-tight text-transparent sm:text-5xl md:text-6xl dark:from-white dark:to-zinc-400">
-          Hello, world.
-        </h1>
-
-        <p className="mx-auto mt-4 max-w-md text-base text-zinc-600 sm:text-lg dark:text-zinc-400">
-          Koryon iskeleti hazır. Telefonda ve bilgisayarda akıcı çalışacak şekilde
-          ayarlandı, Supabase bağlantısı için her şey kuruldu.
-        </p>
-
-        <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Card title="Vite + React" subtitle="TypeScript" />
-          <Card title="Tailwind" subtitle="Mobil öncelikli" />
-          <Card title="Supabase" subtitle="Hazır" />
-        </div>
-      </section>
-    </main>
+    <AuthProvider>
+      <AuthGate>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/rooms" element={<RoomListPage />} />
+            <Route path="/rooms/new" element={<NewRoomPage />} />
+            <Route path="/rooms/:id" element={<RoomDetailPage />} />
+            <Route path="/rooms/:id/panels/new" element={<NewPanelPage />} />
+            <Route
+              path="/rooms/:id/drawings/new"
+              element={<NewDrawingPage />}
+            />
+            <Route path="/panels/:id" element={<PanelDetailPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthGate>
+    </AuthProvider>
   );
 }
 
-function Card({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="rounded-xl border border-zinc-200/60 bg-white/60 p-4 text-left shadow-sm backdrop-blur transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900/60">
-      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-        {title}
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { loading, error, userId } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900" />
+          <p className="mt-3 text-sm text-zinc-500">Hazırlanıyor...</p>
+        </div>
       </div>
-      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</div>
+    );
+  }
+
+  if (error || !userId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white px-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-xl font-semibold text-zinc-900">
+            Oturum başlatılamadı
+          </h1>
+          <p className="mt-2 text-sm text-zinc-600">
+            {error ?? "Beklenmeyen bir hata oluştu."}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-xl bg-zinc-900 px-5 py-3 font-semibold text-white active:bg-zinc-800"
+          >
+            Tekrar Dene
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function NotFoundPage() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+      <h1 className="text-2xl font-bold">404</h1>
+      <p className="mt-2 text-zinc-500">Sayfa bulunamadı.</p>
+      <a
+        href="/"
+        className="mt-4 rounded-xl bg-zinc-900 px-5 py-3 font-semibold text-white"
+      >
+        Ana sayfaya dön
+      </a>
     </div>
   );
 }

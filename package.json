@@ -14,7 +14,8 @@
   "dependencies": {
     "@supabase/supabase-js": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "react-router-dom": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
