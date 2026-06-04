@@ -7,19 +7,25 @@ export default function HomePage() {
       <PageHeader title="Koryon" subtitle="Saha kayıt asistanı" />
       <div className="mx-auto max-w-2xl space-y-3 px-4 py-6">
         <BigLink
-          to="/rooms/new"
+          to="/units/new"
           variant="primary"
           icon={<PlusIcon />}
-          label="Yeni Oda Oluştur"
-          hint="Pano odası, MCC, dağıtım panosu odası..."
+          label="Yeni Ünite Oluştur"
+          hint="Şartnamedeki üniteyi tanımla"
         />
         <BigLink
-          to="/rooms"
+          to="/units"
           variant="secondary"
           icon={<ListIcon />}
-          label="Kayıtlı Odalar"
-          hint="Daha önce oluşturduğun odalar"
+          label="Kayıtlı Üniteler"
+          hint="Daha önce oluşturduğun üniteler"
         />
+      </div>
+
+      <div className="mx-auto mt-2 max-w-2xl px-4">
+        <p className="text-center text-xs text-zinc-400">
+          Ünite → Oda → Pano → Ekipman
+        </p>
       </div>
     </>
   );

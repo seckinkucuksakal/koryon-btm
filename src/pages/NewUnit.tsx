@@ -1,49 +1,27 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { TextArea, TextField } from "../components/Form";
 import { BigButton } from "../components/BigButton";
 import { supabase } from "../lib/supabase";
-import type { Database } from "../lib/database.types";
 
-type Unit = Database["public"]["Tables"]["units"]["Row"];
-
-export default function NewRoomPage() {
-  const { id: unitId } = useParams<{ id: string }>();
+export default function NewUnitPage() {
   const navigate = useNavigate();
-  const [unit, setUnit] = useState<Unit | null>(null);
-  const [roomName, setRoomName] = useState("");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!unitId) return;
-    let cancelled = false;
-    supabase
-      .from("units")
-      .select("*")
-      .eq("id", unitId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setUnit(data ?? null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [unitId]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!unitId || !roomName.trim()) return;
+    if (!name.trim()) return;
     setBusy(true);
     setError(null);
 
     const { data, error: dbErr } = await supabase
-      .from("rooms")
+      .from("units")
       .insert({
-        unit_id: unitId,
-        room_name: roomName.trim(),
+        name: name.trim(),
         description: description.trim() || null,
       })
       .select("id")
@@ -56,28 +34,24 @@ export default function NewRoomPage() {
       return;
     }
 
-    navigate(`/rooms/${data.id}`, { replace: true });
+    navigate(`/units/${data.id}`, { replace: true });
   }
 
   return (
     <>
-      <PageHeader
-        title="Yeni Oda"
-        subtitle={unit ? unit.name : undefined}
-        back
-      />
+      <PageHeader title="Yeni Ünite" back />
       <form
         onSubmit={handleSubmit}
         className="mx-auto max-w-2xl space-y-4 px-4 py-6"
       >
         <TextField
-          label="Oda Adı"
+          label="Ünite Adı"
           required
           autoFocus
-          value={roomName}
-          onChange={(e) => setRoomName(e.target.value)}
-          placeholder="Ör. Pano Odası A, MCC Odası"
-          autoCapitalize="words"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ör. Ünite-1, Soğutma Suyu, Kazan-2"
+          autoCapitalize="characters"
           autoComplete="off"
         />
         <TextArea
@@ -97,7 +71,7 @@ export default function NewRoomPage() {
           type="submit"
           variant="primary"
           label={busy ? "Kaydediliyor..." : "Kaydet"}
-          disabled={busy || !roomName.trim()}
+          disabled={busy || !name.trim()}
         />
       </form>
     </>

@@ -206,7 +206,7 @@ export type Database = {
           description: string | null
           id: string
           room_name: string
-          unit_name: string
+          unit_id: string
           updated_at: string
           user_id: string
         }
@@ -215,7 +215,7 @@ export type Database = {
           description?: string | null
           id?: string
           room_name: string
-          unit_name: string
+          unit_id: string
           updated_at?: string
           user_id?: string
         }
@@ -224,7 +224,42 @@ export type Database = {
           description?: string | null
           id?: string
           room_name?: string
-          unit_name?: string
+          unit_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      units: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
           updated_at?: string
           user_id?: string
         }

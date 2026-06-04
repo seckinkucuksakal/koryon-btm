@@ -1,8 +1,10 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import HomePage from "./pages/Home";
+import UnitListPage from "./pages/UnitList";
+import NewUnitPage from "./pages/NewUnit";
+import UnitDetailPage from "./pages/UnitDetail";
 import NewRoomPage from "./pages/NewRoom";
-import RoomListPage from "./pages/RoomList";
 import RoomDetailPage from "./pages/RoomDetail";
 import NewPanelPage from "./pages/NewPanel";
 import PanelDetailPage from "./pages/PanelDetail";
@@ -15,15 +17,21 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/rooms" element={<RoomListPage />} />
-            <Route path="/rooms/new" element={<NewRoomPage />} />
+
+            <Route path="/units" element={<UnitListPage />} />
+            <Route path="/units/new" element={<NewUnitPage />} />
+            <Route path="/units/:id" element={<UnitDetailPage />} />
+            <Route path="/units/:id/rooms/new" element={<NewRoomPage />} />
+
             <Route path="/rooms/:id" element={<RoomDetailPage />} />
             <Route path="/rooms/:id/panels/new" element={<NewPanelPage />} />
             <Route
               path="/rooms/:id/drawings/new"
               element={<NewDrawingPage />}
             />
+
             <Route path="/panels/:id" element={<PanelDetailPage />} />
+
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>

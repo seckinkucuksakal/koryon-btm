@@ -12,11 +12,12 @@ type Panel = Database["public"]["Tables"]["panels"]["Row"];
 type Photo = Database["public"]["Tables"]["photos"]["Row"];
 type Drawing = Database["public"]["Tables"]["drawings"]["Row"];
 type Note = Database["public"]["Tables"]["notes"]["Row"];
+type RoomWithUnit = Room & { units: { name: string } | null };
 
 export default function RoomDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [room, setRoom] = useState<Room | null>(null);
+  const [room, setRoom] = useState<RoomWithUnit | null>(null);
   const [panels, setPanels] = useState<Panel[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -27,7 +28,11 @@ export default function RoomDetailPage() {
   const load = useCallback(async () => {
     if (!id) return;
     const [r, p, ph, dr, no] = await Promise.all([
-      supabase.from("rooms").select("*").eq("id", id).maybeSingle(),
+      supabase
+        .from("rooms")
+        .select("*, units(name)")
+        .eq("id", id)
+        .maybeSingle(),
       supabase
         .from("panels")
         .select("*")
@@ -55,7 +60,7 @@ export default function RoomDetailPage() {
       setLoading(false);
       return;
     }
-    setRoom(r.data);
+    setRoom(r.data as RoomWithUnit);
     setPanels(p.data ?? []);
     setPhotos(ph.data ?? []);
     setDrawings(dr.data ?? []);
@@ -108,7 +113,7 @@ export default function RoomDetailPage() {
     <>
       <PageHeader
         title={room.room_name}
-        subtitle={room.unit_name}
+        subtitle={room.units?.name}
         back
         right={
           <button
