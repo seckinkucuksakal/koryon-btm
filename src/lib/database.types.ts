@@ -15,7 +15,9 @@ export type Database = {
       drawings: {
         Row: {
           created_at: string
+          data: Json | null
           id: string
+          kind: string
           panel_id: string | null
           room_id: string | null
           storage_path: string
@@ -24,7 +26,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          data?: Json | null
           id?: string
+          kind?: string
           panel_id?: string | null
           room_id?: string | null
           storage_path: string
@@ -33,7 +37,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          data?: Json | null
           id?: string
+          kind?: string
           panel_id?: string | null
           room_id?: string | null
           storage_path?: string
