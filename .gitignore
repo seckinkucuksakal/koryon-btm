@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# build output
+dist/
+dist-ssr/
+build/
+out/
+
+# logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# testing
+coverage/
+
+# typescript
+*.tsbuildinfo
+
+# misc
+.DS_Store
+Thumbs.db
+*.pem
+*.local
+
+# local env files
+.env
+.env.*
+!.env.example
+
+# editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# vite
+.vite/
