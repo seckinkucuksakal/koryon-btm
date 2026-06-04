@@ -50,7 +50,7 @@ export default function NewDrawingPage() {
   return (
     <>
       <PageHeader title="Serbest Çizim" subtitle="Parmağınla çizebilirsin" back />
-      <div className="mx-auto max-w-2xl px-4 py-5">
+      <div className="mx-auto max-w-3xl px-4 py-5">
         <DrawingCanvas onSave={handleSave} saving={saving} />
         {error && (
           <div className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">

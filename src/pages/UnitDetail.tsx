@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
+import {
+  DrawingIcon,
+  NoteIcon,
+  PanelIcon,
+  PhotoIcon,
+  StatChip,
+} from "../components/StatChip";
 import { supabase } from "../lib/supabase";
 import type { Database } from "../lib/database.types";
 
 type Unit = Database["public"]["Tables"]["units"]["Row"];
-type Room = Database["public"]["Tables"]["rooms"]["Row"];
+type RoomStat = Database["public"]["Views"]["room_stats"]["Row"];
 
 export default function UnitDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [unit, setUnit] = useState<Unit | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [rooms, setRooms] = useState<RoomStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -20,7 +27,7 @@ export default function UnitDetailPage() {
     const [u, r] = await Promise.all([
       supabase.from("units").select("*").eq("id", id).maybeSingle(),
       supabase
-        .from("rooms")
+        .from("room_stats")
         .select("*")
         .eq("unit_id", id)
         .order("created_at", { ascending: false }),
@@ -58,7 +65,7 @@ export default function UnitDetailPage() {
     return (
       <>
         <PageHeader title="Yükleniyor..." back />
-        <div className="mx-auto max-w-2xl space-y-3 px-4 py-6">
+        <div className="mx-auto max-w-4xl space-y-3 px-4 py-6">
           <div className="h-24 animate-pulse rounded-2xl bg-zinc-100" />
           <div className="h-24 animate-pulse rounded-2xl bg-zinc-100" />
         </div>
@@ -70,7 +77,7 @@ export default function UnitDetailPage() {
     return (
       <>
         <PageHeader title="Bulunamadı" back />
-        <div className="mx-auto max-w-2xl px-4 py-6 text-zinc-500">
+        <div className="mx-auto max-w-4xl px-4 py-6 text-zinc-500">
           Ünite bulunamadı.
         </div>
       </>
@@ -95,7 +102,7 @@ export default function UnitDetailPage() {
         }
       />
 
-      <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+      <div className="mx-auto max-w-4xl space-y-5 px-4 py-5">
         {unit.description && (
           <p className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
             {unit.description}
@@ -103,7 +110,7 @@ export default function UnitDetailPage() {
         )}
 
         <section>
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-3 flex items-center gap-2">
             <h2 className="text-base font-semibold text-zinc-900">Odalar</h2>
             <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
               {rooms.length}
@@ -121,12 +128,12 @@ export default function UnitDetailPage() {
               Henüz oda yok. İlk odayı ekleyerek başla.
             </div>
           ) : (
-            <ul className="space-y-2">
+            <ul className="grid gap-3 md:grid-cols-2">
               {rooms.map((room) => (
                 <li key={room.id}>
                   <Link
                     to={`/rooms/${room.id}`}
-                    className="block rounded-2xl border-2 border-zinc-200 bg-white px-5 py-4 active:bg-zinc-50"
+                    className="block h-full rounded-2xl border-2 border-zinc-200 bg-white px-5 py-4 transition active:bg-zinc-50 md:hover:border-zinc-300 md:hover:shadow"
                   >
                     <div className="text-base font-semibold text-zinc-900">
                       {room.room_name}
@@ -136,9 +143,35 @@ export default function UnitDetailPage() {
                         {room.description}
                       </div>
                     )}
-                    <div className="mt-2 text-xs text-zinc-400">
-                      {new Date(room.created_at).toLocaleString("tr-TR")}
+
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      <StatChip
+                        icon={<PanelIcon />}
+                        label="pano"
+                        value={room.panel_count ?? 0}
+                      />
+                      <StatChip
+                        icon={<PhotoIcon />}
+                        label="foto"
+                        value={room.photo_count ?? 0}
+                      />
+                      <StatChip
+                        icon={<DrawingIcon />}
+                        label="çizim"
+                        value={room.drawing_count ?? 0}
+                      />
+                      <StatChip
+                        icon={<NoteIcon />}
+                        label="not"
+                        value={room.note_count ?? 0}
+                      />
                     </div>
+
+                    {room.created_at && (
+                      <div className="mt-2 text-xs text-zinc-400">
+                        {new Date(room.created_at).toLocaleString("tr-TR")}
+                      </div>
+                    )}
                   </Link>
                 </li>
               ))}

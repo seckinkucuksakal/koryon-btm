@@ -64,7 +64,7 @@ export default function PanelDetailPage() {
     return (
       <>
         <PageHeader title="Yükleniyor..." back />
-        <div className="mx-auto max-w-2xl space-y-3 px-4 py-6">
+        <div className="mx-auto max-w-4xl space-y-3 px-4 py-6">
           <div className="h-24 animate-pulse rounded-2xl bg-zinc-100" />
         </div>
       </>
@@ -75,7 +75,7 @@ export default function PanelDetailPage() {
     return (
       <>
         <PageHeader title="Bulunamadı" back />
-        <div className="mx-auto max-w-2xl px-4 py-6 text-zinc-500">
+        <div className="mx-auto max-w-4xl px-4 py-6 text-zinc-500">
           Pano bulunamadı.
         </div>
       </>
@@ -103,7 +103,7 @@ export default function PanelDetailPage() {
         }
       />
 
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
+      <div className="mx-auto max-w-4xl space-y-6 px-4 py-5">
         {panel.notes && (
           <p className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
             {panel.notes}
@@ -143,7 +143,7 @@ export default function PanelDetailPage() {
             onUploaded={load}
           />
           {photos.length > 0 && (
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 grid grid-cols-3 gap-2 md:grid-cols-4">
               {photos.map((ph) => (
                 <StorageImage
                   key={ph.id}

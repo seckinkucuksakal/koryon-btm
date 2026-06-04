@@ -68,7 +68,7 @@ export default function NewRoomPage() {
       />
       <form
         onSubmit={handleSubmit}
-        className="mx-auto max-w-2xl space-y-4 px-4 py-6"
+        className="mx-auto max-w-xl space-y-4 px-4 py-6"
       >
         <TextField
           label="Oda Adı"

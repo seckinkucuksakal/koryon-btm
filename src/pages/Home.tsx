@@ -1,33 +1,128 @@
+import { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { BigLink } from "../components/BigButton";
+import {
+  DrawingIcon,
+  PanelIcon,
+  PhotoIcon,
+  RoomIcon,
+} from "../components/StatChip";
+import { supabase } from "../lib/supabase";
+
+type Totals = {
+  units: number;
+  rooms: number;
+  panels: number;
+  photos: number;
+  drawings: number;
+};
 
 export default function HomePage() {
+  const [totals, setTotals] = useState<Totals | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("unit_stats")
+      .select("room_count, panel_count, photo_count, drawing_count")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const list = data ?? [];
+        const t: Totals = {
+          units: list.length,
+          rooms: list.reduce((s, u) => s + (u.room_count ?? 0), 0),
+          panels: list.reduce((s, u) => s + (u.panel_count ?? 0), 0),
+          photos: list.reduce((s, u) => s + (u.photo_count ?? 0), 0),
+          drawings: list.reduce((s, u) => s + (u.drawing_count ?? 0), 0),
+        };
+        setTotals(t);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <>
       <PageHeader title="Koryon" subtitle="Saha kayıt asistanı" />
-      <div className="mx-auto max-w-2xl space-y-3 px-4 py-6">
-        <BigLink
-          to="/units/new"
-          variant="primary"
-          icon={<PlusIcon />}
-          label="Yeni Ünite Oluştur"
-          hint="Şartnamedeki üniteyi tanımla"
-        />
-        <BigLink
-          to="/units"
-          variant="secondary"
-          icon={<ListIcon />}
-          label="Kayıtlı Üniteler"
-          hint="Daha önce oluşturduğun üniteler"
-        />
-      </div>
+      <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
+        <Summary totals={totals} />
 
-      <div className="mx-auto mt-2 max-w-2xl px-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <BigLink
+            to="/units/new"
+            variant="primary"
+            icon={<PlusIcon />}
+            label="Yeni Ünite Oluştur"
+            hint="Şartnamedeki üniteyi tanımla"
+          />
+          <BigLink
+            to="/units"
+            variant="secondary"
+            icon={<ListIcon />}
+            label="Kayıtlı Üniteler"
+            hint={
+              totals
+                ? `${totals.units} ünite, ${totals.rooms} oda, ${totals.panels} pano`
+                : "Daha önce oluşturduğun üniteler"
+            }
+          />
+        </div>
+
         <p className="text-center text-xs text-zinc-400">
           Ünite → Oda → Pano → Ekipman
         </p>
       </div>
     </>
+  );
+}
+
+function Summary({ totals }: { totals: Totals | null }) {
+  const items = [
+    {
+      icon: <UnitIcon />,
+      label: "Ünite",
+      value: totals?.units,
+    },
+    {
+      icon: <RoomIcon />,
+      label: "Oda",
+      value: totals?.rooms,
+    },
+    {
+      icon: <PanelIcon />,
+      label: "Pano",
+      value: totals?.panels,
+    },
+    {
+      icon: <PhotoIcon />,
+      label: "Fotoğraf",
+      value: totals?.photos,
+    },
+    {
+      icon: <DrawingIcon />,
+      label: "Çizim",
+      value: totals?.drawings,
+    },
+  ];
+
+  return (
+    <div className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-5">
+        {items.map((it) => (
+          <div
+            key={it.label}
+            className="flex flex-col items-center justify-center rounded-xl bg-zinc-50 px-2 py-3 text-center"
+          >
+            <div className="text-zinc-500">{it.icon}</div>
+            <div className="mt-1 text-2xl font-bold tabular-nums text-zinc-900">
+              {it.value ?? "–"}
+            </div>
+            <div className="text-xs text-zinc-500">{it.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -67,6 +162,26 @@ function ListIcon() {
       <line x1="3" y1="6" x2="3.01" y2="6" />
       <line x1="3" y1="12" x2="3.01" y2="12" />
       <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  );
+}
+
+function UnitIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="3" width="7" height="7" />
+      <rect x="14" y="3" width="7" height="7" />
+      <rect x="14" y="14" width="7" height="7" />
+      <rect x="3" y="14" width="7" height="7" />
     </svg>
   );
 }

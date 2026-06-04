@@ -11,7 +11,7 @@ export default function PageHeader({ title, subtitle, back, right }: Props) {
   const navigate = useNavigate();
   return (
     <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-3">
+      <div className="mx-auto flex max-w-4xl items-center gap-2 px-4 py-3">
         {back && (
           <button
             type="button"

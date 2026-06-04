@@ -3,12 +3,17 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import PhotoUploader from "../components/PhotoUploader";
 import StorageImage from "../components/StorageImage";
+import {
+  EquipmentIcon,
+  PhotoIcon,
+  StatChip,
+} from "../components/StatChip";
 import { supabase, PANEL_TYPE_LABELS } from "../lib/supabase";
 import { deleteFromStorage } from "../lib/storage";
 import type { Database } from "../lib/database.types";
 
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
-type Panel = Database["public"]["Tables"]["panels"]["Row"];
+type PanelStat = Database["public"]["Views"]["panel_stats"]["Row"];
 type Photo = Database["public"]["Tables"]["photos"]["Row"];
 type Drawing = Database["public"]["Tables"]["drawings"]["Row"];
 type Note = Database["public"]["Tables"]["notes"]["Row"];
@@ -18,7 +23,7 @@ export default function RoomDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [room, setRoom] = useState<RoomWithUnit | null>(null);
-  const [panels, setPanels] = useState<Panel[]>([]);
+  const [panels, setPanels] = useState<PanelStat[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -34,7 +39,7 @@ export default function RoomDetailPage() {
         .eq("id", id)
         .maybeSingle(),
       supabase
-        .from("panels")
+        .from("panel_stats")
         .select("*")
         .eq("room_id", id)
         .order("created_at", { ascending: false }),
@@ -76,7 +81,7 @@ export default function RoomDetailPage() {
     return (
       <>
         <PageHeader title="Yükleniyor..." back />
-        <div className="mx-auto max-w-2xl space-y-3 px-4 py-6">
+        <div className="mx-auto max-w-4xl space-y-3 px-4 py-6">
           <div className="h-24 animate-pulse rounded-2xl bg-zinc-100" />
           <div className="h-24 animate-pulse rounded-2xl bg-zinc-100" />
         </div>
@@ -88,7 +93,7 @@ export default function RoomDetailPage() {
     return (
       <>
         <PageHeader title="Bulunamadı" back />
-        <div className="mx-auto max-w-2xl px-4 py-6 text-zinc-500">
+        <div className="mx-auto max-w-4xl px-4 py-6 text-zinc-500">
           Oda bulunamadı.
         </div>
       </>
@@ -97,7 +102,11 @@ export default function RoomDetailPage() {
 
   async function handleDeleteRoom() {
     if (!room) return;
-    if (!confirm(`"${room.room_name}" odasını silmek istiyor musun? Bu işlem geri alınamaz.`)) {
+    if (
+      !confirm(
+        `"${room.room_name}" odasını silmek istiyor musun? Bu işlem geri alınamaz.`,
+      )
+    ) {
       return;
     }
     const paths = [
@@ -106,7 +115,7 @@ export default function RoomDetailPage() {
     ];
     await Promise.all(paths.map((p) => deleteFromStorage(p)));
     await supabase.from("rooms").delete().eq("id", room.id);
-    navigate("/rooms", { replace: true });
+    navigate(`/units/${room.unit_id}`, { replace: true });
   }
 
   return (
@@ -127,7 +136,7 @@ export default function RoomDetailPage() {
         }
       />
 
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
+      <div className="mx-auto max-w-4xl space-y-6 px-4 py-5">
         {room.description && (
           <p className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
             {room.description}
@@ -149,19 +158,32 @@ export default function RoomDetailPage() {
           {panels.length === 0 ? (
             <Empty text="Henüz pano yok" />
           ) : (
-            <ul className="space-y-2">
+            <ul className="grid gap-3 md:grid-cols-2">
               {panels.map((panel) => (
                 <li key={panel.id}>
                   <Link
                     to={`/panels/${panel.id}`}
-                    className="block rounded-2xl border-2 border-zinc-200 bg-white px-4 py-3 active:bg-zinc-50"
+                    className="block h-full rounded-2xl border-2 border-zinc-200 bg-white px-4 py-3 transition active:bg-zinc-50 md:hover:border-zinc-300 md:hover:shadow"
                   >
                     <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                      {PANEL_TYPE_LABELS[panel.panel_type as keyof typeof PANEL_TYPE_LABELS] ??
-                        panel.panel_type}
+                      {PANEL_TYPE_LABELS[
+                        panel.panel_type as keyof typeof PANEL_TYPE_LABELS
+                      ] ?? panel.panel_type}
                     </div>
                     <div className="text-base font-semibold text-zinc-900">
                       {panel.name}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <StatChip
+                        icon={<EquipmentIcon />}
+                        label="ekipman"
+                        value={panel.equipment_count ?? 0}
+                      />
+                      <StatChip
+                        icon={<PhotoIcon />}
+                        label="foto"
+                        value={panel.photo_count ?? 0}
+                      />
                     </div>
                   </Link>
                 </li>
@@ -170,7 +192,11 @@ export default function RoomDetailPage() {
           )}
         </Section>
 
-        <Section title="Fotoğraflar" count={photos.length}>
+        <Section title="Oda Fotoğrafları" count={photos.length}>
+          <p className="mb-2 text-xs text-zinc-500">
+            Bu fotoğraflar odaya aittir. Pano fotoğrafları her panonun kendi
+            sayfasında.
+          </p>
           <PhotoUploader
             folder="rooms"
             ownerColumn="room_id"
@@ -178,7 +204,7 @@ export default function RoomDetailPage() {
             onUploaded={load}
           />
           {photos.length > 0 && (
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 grid grid-cols-3 gap-2 md:grid-cols-4">
               {photos.map((ph) => (
                 <StorageImage
                   key={ph.id}
@@ -205,7 +231,7 @@ export default function RoomDetailPage() {
           {drawings.length === 0 ? (
             <Empty text="Henüz çizim yok" />
           ) : (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
               {drawings.map((d) => (
                 <div
                   key={d.id}
