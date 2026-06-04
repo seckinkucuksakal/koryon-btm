@@ -27,10 +27,14 @@ export default function App() {
             <Route path="/rooms/:id/panels/new" element={<NewPanelPage />} />
             <Route
               path="/rooms/:id/drawings/new"
-              element={<NewDrawingPage />}
+              element={<NewDrawingPage target="room" />}
             />
 
             <Route path="/panels/:id" element={<PanelDetailPage />} />
+            <Route
+              path="/panels/:id/drawings/new"
+              element={<NewDrawingPage target="panel" />}
+            />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

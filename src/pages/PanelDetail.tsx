@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import PhotoUploader from "../components/PhotoUploader";
 import StorageImage from "../components/StorageImage";
+import Lightbox, { type LightboxItem } from "../components/Lightbox";
 import { PANEL_TYPE_LABELS, supabase } from "../lib/supabase";
 import { deleteFromStorage } from "../lib/storage";
 import type { Database } from "../lib/database.types";
@@ -10,6 +11,7 @@ import type { Database } from "../lib/database.types";
 type Panel = Database["public"]["Tables"]["panels"]["Row"];
 type Equipment = Database["public"]["Tables"]["equipment"]["Row"];
 type Photo = Database["public"]["Tables"]["photos"]["Row"];
+type Drawing = Database["public"]["Tables"]["drawings"]["Row"];
 
 export default function PanelDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,12 +19,17 @@ export default function PanelDetailPage() {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [viewer, setViewer] = useState<{
+    items: LightboxItem[];
+    index: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [p, e, ph] = await Promise.all([
+    const [p, e, ph, dr] = await Promise.all([
       supabase.from("panels").select("*").eq("id", id).maybeSingle(),
       supabase
         .from("equipment")
@@ -31,6 +38,11 @@ export default function PanelDetailPage() {
         .order("created_at", { ascending: true }),
       supabase
         .from("photos")
+        .select("*")
+        .eq("panel_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("drawings")
         .select("*")
         .eq("panel_id", id)
         .order("created_at", { ascending: false }),
@@ -45,6 +57,7 @@ export default function PanelDetailPage() {
     setPanel(p.data);
     setEquipment(e.data ?? []);
     setPhotos(ph.data ?? []);
+    setDrawings(dr.data ?? []);
     setLoading(false);
   }, [id]);
 
@@ -55,7 +68,11 @@ export default function PanelDetailPage() {
   async function handleDeletePanel() {
     if (!panel) return;
     if (!confirm(`"${panel.name}" panosunu silmek istiyor musun?`)) return;
-    await Promise.all(photos.map((p) => deleteFromStorage(p.storage_path)));
+    const paths = [
+      ...photos.map((p) => p.storage_path),
+      ...drawings.map((d) => d.storage_path),
+    ];
+    await Promise.all(paths.map((p) => deleteFromStorage(p)));
     await supabase.from("panels").delete().eq("id", panel.id);
     navigate(`/rooms/${panel.room_id}`, { replace: true });
   }
@@ -144,17 +161,92 @@ export default function PanelDetailPage() {
           />
           {photos.length > 0 && (
             <div className="mt-3 grid grid-cols-3 gap-2 md:grid-cols-4">
-              {photos.map((ph) => (
-                <StorageImage
+              {photos.map((ph, i) => (
+                <button
+                  type="button"
                   key={ph.id}
-                  path={ph.storage_path}
-                  className="aspect-square w-full rounded-xl object-cover"
-                />
+                  onClick={() =>
+                    setViewer({
+                      items: photos.map((p, idx) => ({
+                        path: p.storage_path,
+                        title: `${panel.name} — Foto ${idx + 1}`,
+                      })),
+                      index: i,
+                    })
+                  }
+                  className="overflow-hidden rounded-xl active:opacity-80 md:hover:opacity-90"
+                >
+                  <StorageImage
+                    path={ph.storage_path}
+                    className="aspect-square w-full rounded-xl object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-zinc-900">
+              Çizimler
+              <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                {drawings.length}
+              </span>
+            </h2>
+            <Link
+              to={`/panels/${panel.id}/drawings/new`}
+              className="ml-auto rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white active:bg-zinc-800"
+            >
+              + Çizim
+            </Link>
+          </div>
+
+          {drawings.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed border-zinc-200 bg-white px-4 py-6 text-center text-sm text-zinc-400">
+              Henüz çizim yok
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+              {drawings.map((d, i) => (
+                <button
+                  type="button"
+                  key={d.id}
+                  onClick={() =>
+                    setViewer({
+                      items: drawings.map((dr, idx) => ({
+                        path: dr.storage_path,
+                        title: `${panel.name} — Çizim ${idx + 1}`,
+                      })),
+                      index: i,
+                    })
+                  }
+                  className="overflow-hidden rounded-xl border-2 border-zinc-200 bg-white text-left transition active:opacity-80 md:hover:border-zinc-300"
+                >
+                  <StorageImage
+                    path={d.storage_path}
+                    className="aspect-[4/3] w-full object-contain"
+                  />
+                  <div className="px-3 py-2 text-xs text-zinc-500">
+                    {new Date(d.created_at).toLocaleString("tr-TR")}
+                  </div>
+                </button>
               ))}
             </div>
           )}
         </section>
       </div>
+
+      {viewer && (
+        <Lightbox
+          items={viewer.items}
+          index={viewer.index}
+          onClose={() => setViewer(null)}
+          onIndexChange={(i) =>
+            setViewer((v) => (v ? { ...v, index: i } : v))
+          }
+        />
+      )}
     </>
   );
 }

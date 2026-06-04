@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import PhotoUploader from "../components/PhotoUploader";
 import StorageImage from "../components/StorageImage";
+import Lightbox, { type LightboxItem } from "../components/Lightbox";
 import {
+  DrawingIcon,
   EquipmentIcon,
   PhotoIcon,
   StatChip,
@@ -29,6 +31,10 @@ export default function RoomDetailPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [viewer, setViewer] = useState<{
+    items: LightboxItem[];
+    index: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -184,6 +190,11 @@ export default function RoomDetailPage() {
                         label="foto"
                         value={panel.photo_count ?? 0}
                       />
+                      <StatChip
+                        icon={<DrawingIcon />}
+                        label="çizim"
+                        value={panel.drawing_count ?? 0}
+                      />
                     </div>
                   </Link>
                 </li>
@@ -194,8 +205,8 @@ export default function RoomDetailPage() {
 
         <Section title="Oda Fotoğrafları" count={photos.length}>
           <p className="mb-2 text-xs text-zinc-500">
-            Bu fotoğraflar odaya aittir. Pano fotoğrafları her panonun kendi
-            sayfasında.
+            Bu fotoğraflar odaya aittir. Pano fotoğrafları ve panoya özel
+            çizimler her panonun kendi sayfasında.
           </p>
           <PhotoUploader
             folder="rooms"
@@ -205,12 +216,26 @@ export default function RoomDetailPage() {
           />
           {photos.length > 0 && (
             <div className="mt-3 grid grid-cols-3 gap-2 md:grid-cols-4">
-              {photos.map((ph) => (
-                <StorageImage
+              {photos.map((ph, i) => (
+                <button
+                  type="button"
                   key={ph.id}
-                  path={ph.storage_path}
-                  className="aspect-square w-full rounded-xl object-cover"
-                />
+                  onClick={() =>
+                    setViewer({
+                      items: photos.map((p, idx) => ({
+                        path: p.storage_path,
+                        title: `Oda Fotoğrafı ${idx + 1}`,
+                      })),
+                      index: i,
+                    })
+                  }
+                  className="overflow-hidden rounded-xl active:opacity-80 md:hover:opacity-90"
+                >
+                  <StorageImage
+                    path={ph.storage_path}
+                    className="aspect-square w-full rounded-xl object-cover"
+                  />
+                </button>
               ))}
             </div>
           )}
@@ -232,10 +257,20 @@ export default function RoomDetailPage() {
             <Empty text="Henüz çizim yok" />
           ) : (
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {drawings.map((d) => (
-                <div
+              {drawings.map((d, i) => (
+                <button
+                  type="button"
                   key={d.id}
-                  className="overflow-hidden rounded-xl border-2 border-zinc-200 bg-white"
+                  onClick={() =>
+                    setViewer({
+                      items: drawings.map((dr, idx) => ({
+                        path: dr.storage_path,
+                        title: `Çizim ${idx + 1}`,
+                      })),
+                      index: i,
+                    })
+                  }
+                  className="overflow-hidden rounded-xl border-2 border-zinc-200 bg-white text-left transition active:opacity-80 md:hover:border-zinc-300"
                 >
                   <StorageImage
                     path={d.storage_path}
@@ -244,7 +279,7 @@ export default function RoomDetailPage() {
                   <div className="px-3 py-2 text-xs text-zinc-500">
                     {new Date(d.created_at).toLocaleString("tr-TR")}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -252,6 +287,17 @@ export default function RoomDetailPage() {
 
         <NotesSection roomId={room.id} notes={notes} onChange={load} />
       </div>
+
+      {viewer && (
+        <Lightbox
+          items={viewer.items}
+          index={viewer.index}
+          onClose={() => setViewer(null)}
+          onIndexChange={(i) =>
+            setViewer((v) => (v ? { ...v, index: i } : v))
+          }
+        />
+      )}
     </>
   );
 }

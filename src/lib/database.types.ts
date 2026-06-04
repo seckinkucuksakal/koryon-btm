@@ -16,7 +16,8 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          room_id: string
+          panel_id: string | null
+          room_id: string | null
           storage_path: string
           title: string | null
           user_id: string
@@ -24,7 +25,8 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          room_id: string
+          panel_id?: string | null
+          room_id?: string | null
           storage_path: string
           title?: string | null
           user_id?: string
@@ -32,27 +34,13 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          room_id?: string
+          panel_id?: string | null
+          room_id?: string | null
           storage_path?: string
           title?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "drawings_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "room_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "drawings_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "rooms"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       equipment: {
         Row: {
@@ -319,6 +307,7 @@ export type Database = {
       panel_stats: {
         Row: {
           created_at: string | null
+          drawing_count: number | null
           equipment_count: number | null
           id: string | null
           name: string | null
@@ -330,6 +319,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          drawing_count?: never
           equipment_count?: never
           id?: string | null
           name?: string | null
@@ -341,6 +331,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          drawing_count?: never
           equipment_count?: never
           id?: string | null
           name?: string | null

@@ -6,21 +6,27 @@ import { useAuth } from "../auth/AuthContext";
 import { supabase } from "../lib/supabase";
 import { uploadToStorage } from "../lib/storage";
 
-export default function NewDrawingPage() {
-  const { id: roomId } = useParams<{ id: string }>();
+type Props = {
+  target: "room" | "panel";
+};
+
+export default function NewDrawingPage({ target }: Props) {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { userId } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isPanel = target === "panel";
+
   async function handleSave(blob: Blob) {
-    if (!roomId || !userId) return;
+    if (!id || !userId) return;
     setSaving(true);
     setError(null);
 
     const result = await uploadToStorage({
       userId,
-      folder: `drawings/${roomId}`,
+      folder: isPanel ? `drawings/panels/${id}` : `drawings/rooms/${id}`,
       file: blob,
       filename: `cizim-${Date.now()}.png`,
       contentType: "image/png",
@@ -33,7 +39,8 @@ export default function NewDrawingPage() {
     }
 
     const { error: dbErr } = await supabase.from("drawings").insert({
-      room_id: roomId,
+      room_id: isPanel ? null : id,
+      panel_id: isPanel ? id : null,
       storage_path: result.path,
     });
 
@@ -44,12 +51,20 @@ export default function NewDrawingPage() {
       return;
     }
 
-    navigate(`/rooms/${roomId}`, { replace: true });
+    navigate(isPanel ? `/panels/${id}` : `/rooms/${id}`, { replace: true });
   }
 
   return (
     <>
-      <PageHeader title="Serbest Çizim" subtitle="Parmağınla çizebilirsin" back />
+      <PageHeader
+        title="Serbest Çizim"
+        subtitle={
+          isPanel
+            ? "Bu çizim panoya kaydedilecek"
+            : "Bu çizim odaya kaydedilecek"
+        }
+        back
+      />
       <div className="mx-auto max-w-3xl px-4 py-5">
         <DrawingCanvas onSave={handleSave} saving={saving} />
         {error && (
