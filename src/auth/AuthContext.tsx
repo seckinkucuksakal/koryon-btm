@@ -4,60 +4,49 @@ import { supabase } from "../lib/supabase";
 
 type AuthState = {
   session: Session | null;
-  userId: string | null;
+  /**
+   * Veriler tamamen public; userId artık zorunlu değil.
+   * Yine de storage path için sabit bir değer dönüyor:
+   * Anon oturum başlatılabilirse o user'ın id'si, aksi halde "shared".
+   */
+  userId: string;
   loading: boolean;
-  error: string | null;
 };
+
+const SHARED_ID = "shared";
 
 const AuthContext = createContext<AuthState>({
   session: null,
-  userId: null,
-  loading: true,
-  error: null,
+  userId: SHARED_ID,
+  loading: false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
     async function bootstrap() {
-      const { data, error: getErr } = await supabase.auth.getSession();
-      if (getErr) {
-        if (mounted) {
-          setError(getErr.message);
-          setLoading(false);
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          if (mounted) setSession(data.session);
+        } else {
+          // Anon dene, başarısız olursa sessizce devam et — veriler public.
+          try {
+            const { data: anon } = await supabase.auth.signInAnonymously();
+            if (mounted && anon.session) setSession(anon.session);
+          } catch {
+            /* noop */
+          }
         }
-        return;
+      } catch {
+        /* noop */
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      if (data.session) {
-        if (mounted) {
-          setSession(data.session);
-          setLoading(false);
-        }
-        return;
-      }
-
-      const { data: anon, error: anonErr } = await supabase.auth.signInAnonymously();
-      if (!mounted) return;
-
-      if (anonErr) {
-        const friendly =
-          anonErr.message?.toLowerCase().includes("anonymous") ||
-          anonErr.message?.toLowerCase().includes("disabled")
-            ? "Anonim girişler kapalı. Supabase Dashboard → Authentication → Sign In / Up → Anonymous Sign-Ins'i aç."
-            : anonErr.message;
-        setError(friendly);
-        setLoading(false);
-        return;
-      }
-
-      setSession(anon.session ?? null);
-      setLoading(false);
     }
 
     bootstrap();
@@ -76,9 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         session,
-        userId: session?.user.id ?? null,
+        userId: session?.user.id ?? SHARED_ID,
         loading,
-        error,
       }}
     >
       {children}

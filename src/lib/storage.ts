@@ -1,30 +1,17 @@
 import { STORAGE_BUCKET, supabase } from "./supabase";
 
-const SIGNED_URL_TTL = 60 * 60;
-
-const cache = new Map<string, { url: string; expiresAt: number }>();
-
+/**
+ * Bucket public olduğu için direkt public URL üretiyoruz.
+ * (Eski signed URL akışından farklı: cache veya TTL gerekmiyor.)
+ * Async imzayı koruyoruz, çağıran kodları değiştirmemek için.
+ */
 export async function getSignedUrl(path: string): Promise<string | null> {
-  const cached = cache.get(path);
-  if (cached && cached.expiresAt > Date.now() + 30_000) {
-    return cached.url;
-  }
-
-  const { data, error } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .createSignedUrl(path, SIGNED_URL_TTL);
-
-  if (error || !data) return null;
-
-  cache.set(path, {
-    url: data.signedUrl,
-    expiresAt: Date.now() + SIGNED_URL_TTL * 1000,
-  });
-  return data.signedUrl;
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return data?.publicUrl ?? null;
 }
 
 export type UploadOptions = {
-  userId: string;
+  userId?: string;
   folder: string;
   file: File | Blob;
   filename?: string;
@@ -42,7 +29,9 @@ export async function uploadToStorage({
   const safeName = filename
     ? filename.replace(/[^\w.\-]/g, "_")
     : `${crypto.randomUUID()}.${ext}`;
-  const path = `${userId}/${folder}/${Date.now()}-${safeName}`;
+  // userId yoksa ortak klasör.
+  const owner = userId && userId.length > 0 ? userId : "shared";
+  const path = `${owner}/${folder}/${Date.now()}-${safeName}`;
 
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
@@ -57,7 +46,6 @@ export async function uploadToStorage({
 
 export async function deleteFromStorage(path: string) {
   await supabase.storage.from(STORAGE_BUCKET).remove([path]);
-  cache.delete(path);
 }
 
 function guessExt(file: File | Blob): string {
