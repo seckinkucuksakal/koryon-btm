@@ -7,6 +7,7 @@ import PhotoTile, { softDeletePhoto } from "../components/PhotoTile";
 import PhotoUploader from "../components/PhotoUploader";
 import StorageImage from "../components/StorageImage";
 import Lightbox, { type LightboxItem } from "../components/Lightbox";
+import PanelEquipmentModal from "../components/PanelEquipmentModal";
 import { PANEL_TYPE_LABELS, supabase } from "../lib/supabase";
 import type { Database } from "../lib/database.types";
 
@@ -30,6 +31,7 @@ export default function PanelDetailPage() {
     index: number;
     canDelete?: boolean;
   } | null>(null);
+  const [equipmentModalOpen, setEquipmentModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -227,22 +229,46 @@ export default function PanelDetailPage() {
         )}
 
         <section>
-          <h2 className="mb-2 text-base font-semibold text-zinc-900">
-            Ekipmanlar
-            <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-              {equipment.length}
-            </span>
-          </h2>
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-zinc-900">
+              Ekipmanlar
+              <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                {equipment.filter(
+                  (e) =>
+                    LOAD_TYPES.has(e.equipment_type ?? "") ||
+                    (!e.equipment_type && !equipment.some((c) => c.parent_id === e.id))
+                ).length}
+              </span>
+            </h2>
+            <button
+              type="button"
+              onClick={() => setEquipmentModalOpen(true)}
+              className="ml-auto flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white active:bg-blue-700"
+            >
+              <PanelTreeIcon />
+              Panel Ekipmanlarını Aç
+            </button>
+          </div>
 
           <QuickEquipmentInput panelId={panel.id} onAdded={load} />
 
-          {equipment.length > 0 && (
-            <ul className="mt-3 divide-y divide-zinc-100 overflow-hidden rounded-2xl border-2 border-zinc-200 bg-white">
-              {equipment.map((eq) => (
-                <EquipmentRow key={eq.id} equipment={eq} onChange={load} />
-              ))}
-            </ul>
-          )}
+          {equipment.length > 0 && (() => {
+            // Sadece yük tipleri (Motor, Pompa vs.) veya tipsiz (hızlı ekleme) göster
+            const fiders = equipment
+              .filter((e) =>
+                LOAD_TYPES.has(e.equipment_type ?? "") ||
+                (!e.equipment_type && !equipment.some((c) => c.parent_id === e.id))
+              )
+              .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.created_at.localeCompare(b.created_at));
+            if (fiders.length === 0) return null;
+            return (
+              <ul className="mt-3 overflow-hidden rounded-2xl border-2 border-zinc-200 bg-white divide-y divide-zinc-100">
+                {fiders.map((eq) => (
+                  <FiderRow key={eq.id} equipment={eq} allEquipment={equipment} onChange={load} />
+                ))}
+              </ul>
+            );
+          })()}
         </section>
 
         <section>
@@ -352,6 +378,14 @@ export default function PanelDetailPage() {
           }
         />
       )}
+
+      {equipmentModalOpen && panel && (
+        <PanelEquipmentModal
+          panel={panel}
+          onClose={() => setEquipmentModalOpen(false)}
+          onSaved={load}
+        />
+      )}
     </>
   );
 }
@@ -428,12 +462,113 @@ function QuickEquipmentInput({
   );
 }
 
-function EquipmentRow({
-  equipment,
+const LOAD_TYPES = new Set([
+  "motor", "pompa", "fan", "heater", "ups",
+  "alt_pano", "junction_box", "aydinlatma", "diger",
+]);
+
+const EQ_TYPE_LABEL: Record<string, string> = {
+  motor: "Motor", pompa: "Pompa", fan: "Fan", heater: "Isıtıcı",
+  ups: "UPS", alt_pano: "Alt Pano", junction_box: "JB",
+  aydinlatma: "Ayd.", diger: "Diğer",
+  tms: "TMŞ", mccb: "MCCB", mcb: "MCB", acb: "ACB",
+  fuse_switch: "Sig.", ct: "CT", pt: "PT",
+  vfd: "VFD", soft_starter: "SS", dol: "DOL",
+  star_delta: "Y-Δ", kontaktor: "KNT",
+  kablo: "Kablo", guc_kablosu: "Kablo",
+  busbar: "BUSBAR",
+};
+
+/** Üst zincir elemanları (yük hariç, busbar hariç): TMŞ → CT → VFD */
+function getChainLabel(leafId: string, allEq: Equipment[]): string {
+  const parts: string[] = [];
+  let cur = allEq.find((e) => e.id === leafId);
+  while (cur?.parent_id) {
+    cur = allEq.find((e) => e.id === cur!.parent_id);
+    if (cur && cur.equipment_type !== "busbar") {
+      const label = cur.equipment_type ? (EQ_TYPE_LABEL[cur.equipment_type] ?? cur.equipment_type) : cur.name;
+      parts.unshift(label);
+    }
+  }
+  return parts.join(" → ");
+}
+
+/**
+ * Fideri ve zincirdeki "artık çocuğu kalmayan" tüm ata ekipmanları siler.
+ * Örn: P-101 silinince CT → TMŞ → BUSBAR da silinir (başka çocukları yoksa).
+ */
+async function cascadeDeleteFider(item: Equipment, allEq: Equipment[]) {
+  const now = new Date().toISOString();
+  const deletedIds = new Set<string>();
+
+  // 1. Fiderin tüm alt ekipmanlarını topla (normalde yok, yine de güvenli taraf)
+  function collectDescendants(id: string) {
+    allEq.filter((e) => e.parent_id === id).forEach((child) => {
+      deletedIds.add(child.id);
+      collectDescendants(child.id);
+    });
+  }
+  deletedIds.add(item.id);
+  collectDescendants(item.id);
+
+  // 2. Zinciri yukarı dolaş; başka çocuğu kalmayan her atayı sil
+  let cur: Equipment | undefined = item;
+  while (cur?.parent_id) {
+    const parentId = cur.parent_id;
+    const parent = allEq.find((e) => e.id === parentId);
+    if (!parent) break;
+    const remainingChildren = allEq.filter(
+      (e) => e.parent_id === parentId && !deletedIds.has(e.id),
+    );
+    if (remainingChildren.length === 0) {
+      deletedIds.add(parentId);
+      cur = parent;
+    } else {
+      break;
+    }
+  }
+
+  // 3. Toplu soft-delete
+  await supabase
+    .from("equipment")
+    .update({ visible: false, deleted_at: now })
+    .in("id", [...deletedIds]);
+}
+
+function FiderRow({
+  equipment: eq,
+  allEquipment,
   onChange,
 }: {
   equipment: Equipment;
+  allEquipment: Equipment[];
   onChange: () => void;
+}) {
+  const typeLabel = eq.equipment_type ? (EQ_TYPE_LABEL[eq.equipment_type] ?? eq.equipment_type) : null;
+  const chain = getChainLabel(eq.id, allEquipment);
+  return (
+    <EquipmentRow
+      equipment={eq}
+      allEquipment={allEquipment}
+      onChange={onChange}
+      typeShort={typeLabel}
+      chainLabel={chain}
+    />
+  );
+}
+
+function EquipmentRow({
+  equipment,
+  allEquipment,
+  onChange,
+  typeShort,
+  chainLabel,
+}: {
+  equipment: Equipment;
+  allEquipment: Equipment[];
+  onChange: () => void;
+  typeShort?: string | null;
+  chainLabel?: string;
 }) {
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -456,17 +591,16 @@ function EquipmentRow({
   }
 
   async function remove() {
+    const chainLabel2 = getChainLabel(equipment.id, allEquipment);
+    const chainInfo = chainLabel2 ? ` (${chainLabel2} → ${equipment.name})` : ` "${equipment.name}"`;
     const ok = await confirm({
-      title: "Ekipmanı sil",
-      message: `"${equipment.name}" silinsin mi? Geri dönüşüm kutusunda saklanır.`,
+      title: "Fideri sil",
+      message: `${chainInfo} zinciriyle birlikte silinsin mi?`,
       confirmText: "Sil",
       destructive: true,
     });
     if (!ok) return;
-    await supabase
-      .from("equipment")
-      .update({ visible: false, deleted_at: new Date().toISOString() })
-      .eq("id", equipment.id);
+    await cascadeDeleteFider(equipment, allEquipment);
     onChange();
   }
 
@@ -519,11 +653,19 @@ function EquipmentRow({
         onClick={() => setEditing(true)}
         className="min-w-0 flex-1 text-left active:opacity-70"
       >
-        <div className="text-base font-semibold text-zinc-900">
-          {equipment.name}
+        <div className="flex items-center gap-2">
+          {typeShort && (
+            <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+              {typeShort}
+            </span>
+          )}
+          <span className="text-base font-semibold text-zinc-900">{equipment.name}</span>
         </div>
+        {chainLabel && (
+          <div className="mt-0.5 text-[11px] text-zinc-400 tracking-wide">{chainLabel}</div>
+        )}
         {equipment.description && (
-          <div className="text-sm text-zinc-500">{equipment.description}</div>
+          <div className="mt-0.5 text-sm text-zinc-500">{equipment.description}</div>
         )}
       </button>
       <button
@@ -535,6 +677,27 @@ function EquipmentRow({
         <TrashIcon size={18} />
       </button>
     </li>
+  );
+}
+
+function PanelTreeIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="3" width="6" height="6" rx="1" />
+      <rect x="15" y="3" width="6" height="6" rx="1" />
+      <rect x="15" y="15" width="6" height="6" rx="1" />
+      <path d="M6 9v3h12V9" />
+      <line x1="18" y1="12" x2="18" y2="15" />
+    </svg>
   );
 }
 

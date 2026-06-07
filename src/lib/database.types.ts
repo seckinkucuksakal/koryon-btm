@@ -113,9 +113,13 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           description: string | null
+          equipment_type: string | null
           id: string
+          metadata: Json | null
           name: string
           panel_id: string
+          parent_id: string | null
+          sort_order: number
           user_id: string
           visible: boolean
         }
@@ -123,9 +127,13 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          equipment_type?: string | null
           id?: string
+          metadata?: Json | null
           name: string
           panel_id: string
+          parent_id?: string | null
+          sort_order?: number
           user_id?: string
           visible?: boolean
         }
@@ -133,9 +141,13 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          equipment_type?: string | null
           id?: string
+          metadata?: Json | null
           name?: string
           panel_id?: string
+          parent_id?: string | null
+          sort_order?: number
           user_id?: string
           visible?: boolean
         }
@@ -256,6 +268,7 @@ export type Database = {
         Row: {
           created_at: string
           deleted_at: string | null
+          equipment_id: string | null
           height: number | null
           id: string
           panel_id: string | null
@@ -269,6 +282,7 @@ export type Database = {
         Insert: {
           created_at?: string
           deleted_at?: string | null
+          equipment_id?: string | null
           height?: number | null
           id?: string
           panel_id?: string | null
@@ -282,6 +296,7 @@ export type Database = {
         Update: {
           created_at?: string
           deleted_at?: string | null
+          equipment_id?: string | null
           height?: number | null
           id?: string
           panel_id?: string | null
