@@ -1,12 +1,44 @@
 import { STORAGE_BUCKET, supabase } from "./supabase";
 
+export type ImageTransform = {
+  width?: number;
+  height?: number;
+  quality?: number;
+  resize?: "cover" | "contain" | "fill";
+};
+
 /**
  * Bucket public olduğu için direkt public URL üretiyoruz.
- * (Eski signed URL akışından farklı: cache veya TTL gerekmiyor.)
- * Async imzayı koruyoruz, çağıran kodları değiştirmemek için.
+ * `transform` verilirse Supabase Image Transformation endpoint'i kullanılır
+ * ve CDN tarafında küçük thumbnail döner — orijinal devasa fotoğrafı çekmek yerine.
  */
-export async function getSignedUrl(path: string): Promise<string | null> {
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+export async function getSignedUrl(
+  path: string,
+  transform?: ImageTransform,
+): Promise<string | null> {
+  return getPublicUrl(path, transform);
+}
+
+/** Sync versiyon — useEffect içinde async beklemek gerekmediği için tercih edilir. */
+export function getPublicUrl(
+  path: string,
+  transform?: ImageTransform,
+): string | null {
+  const { data } = supabase.storage
+    .from(STORAGE_BUCKET)
+    .getPublicUrl(
+      path,
+      transform
+        ? {
+            transform: {
+              width: transform.width,
+              height: transform.height,
+              quality: transform.quality,
+              resize: transform.resize,
+            },
+          }
+        : undefined,
+    );
   return data?.publicUrl ?? null;
 }
 

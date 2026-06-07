@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useConfirm } from "../components/ConfirmDialog";
+import EditableTitle from "../components/EditableTitle";
 import PageHeader from "../components/PageHeader";
 import {
   DrawingIcon,
@@ -17,15 +19,23 @@ type RoomStat = Database["public"]["Views"]["room_stats"]["Row"];
 export default function UnitDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [unit, setUnit] = useState<Unit | null>(null);
   const [rooms, setRooms] = useState<RoomStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
     const [u, r] = await Promise.all([
-      supabase.from("units").select("*").eq("id", id).maybeSingle(),
+      supabase
+        .from("units")
+        .select("*")
+        .eq("id", id)
+        .eq("visible", true)
+        .maybeSingle(),
       supabase
         .from("room_stats")
         .select("*")
@@ -40,6 +50,7 @@ export default function UnitDetailPage() {
     }
 
     setUnit(u.data);
+    setDescDraft(u.data.description ?? "");
     setRooms(r.data ?? []);
     setLoading(false);
   }, [id]);
@@ -48,16 +59,40 @@ export default function UnitDetailPage() {
     load();
   }, [load]);
 
-  async function handleDeleteUnit() {
+  async function handleRenameUnit(next: string) {
     if (!unit) return;
-    if (
-      !confirm(
-        `"${unit.name}" ünitesini silmek istiyor musun? İçindeki tüm odalar, panolar, fotoğraflar silinecek.`,
-      )
-    ) {
-      return;
-    }
-    await supabase.from("units").delete().eq("id", unit.id);
+    const { error } = await supabase
+      .from("units")
+      .update({ name: next, updated_at: new Date().toISOString() })
+      .eq("id", unit.id);
+    if (!error) setUnit({ ...unit, name: next });
+  }
+
+  async function handleSaveDescription() {
+    if (!unit) return;
+    const next = descDraft.trim();
+    const value = next.length > 0 ? next : null;
+    const { error } = await supabase
+      .from("units")
+      .update({ description: value, updated_at: new Date().toISOString() })
+      .eq("id", unit.id);
+    if (!error) setUnit({ ...unit, description: value });
+    setEditingDesc(false);
+  }
+
+  async function handleSoftDeleteUnit() {
+    if (!unit) return;
+    const ok = await confirm({
+      title: "Üniteyi sil",
+      message: `"${unit.name}" ünitesi geri dönüşüm kutusuna taşınsın mı? İçindeki odalar ve panolar saklanır, istediğinde geri yükleyebilirsin.`,
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+    await supabase
+      .from("units")
+      .update({ visible: false, deleted_at: new Date().toISOString() })
+      .eq("id", unit.id);
     navigate("/units", { replace: true });
   }
 
@@ -87,13 +122,20 @@ export default function UnitDetailPage() {
   return (
     <>
       <PageHeader
-        title={unit.name}
+        title={
+          <EditableTitle
+            value={unit.name}
+            onSave={handleRenameUnit}
+            ariaLabel="Ünite adını düzenle"
+            placeholder="Ünite adı"
+          />
+        }
         subtitle="Ünite"
         back
         right={
           <button
             type="button"
-            onClick={handleDeleteUnit}
+            onClick={handleSoftDeleteUnit}
             aria-label="Üniteyi Sil"
             className="flex h-12 w-12 items-center justify-center rounded-xl text-rose-600 active:bg-rose-50"
           >
@@ -103,11 +145,21 @@ export default function UnitDetailPage() {
       />
 
       <div className="mx-auto max-w-4xl space-y-5 px-4 py-5">
-        {unit.description && (
-          <p className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
-            {unit.description}
-          </p>
-        )}
+        <DescriptionBlock
+          editing={editingDesc}
+          value={unit.description ?? ""}
+          draft={descDraft}
+          onDraftChange={setDescDraft}
+          onStartEdit={() => {
+            setDescDraft(unit.description ?? "");
+            setEditingDesc(true);
+          }}
+          onCancel={() => {
+            setDescDraft(unit.description ?? "");
+            setEditingDesc(false);
+          }}
+          onSave={handleSaveDescription}
+        />
 
         <section>
           <div className="mb-3 flex items-center gap-2">
@@ -180,6 +232,77 @@ export default function UnitDetailPage() {
         </section>
       </div>
     </>
+  );
+}
+
+function DescriptionBlock({
+  editing,
+  value,
+  draft,
+  onDraftChange,
+  onStartEdit,
+  onCancel,
+  onSave,
+}: {
+  editing: boolean;
+  value: string;
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onStartEdit: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  if (editing) {
+    return (
+      <div className="space-y-2 rounded-2xl bg-zinc-50 p-3">
+        <textarea
+          value={draft}
+          onChange={(e) => onDraftChange(e.target.value)}
+          rows={3}
+          autoFocus
+          placeholder="Açıklama..."
+          className="w-full rounded-xl border-2 border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-zinc-900"
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-xl border-2 border-zinc-200 bg-white px-3 py-2 text-sm font-semibold active:bg-zinc-100"
+          >
+            Vazgeç
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className="flex-1 rounded-xl bg-zinc-900 px-3 py-2 text-sm font-semibold text-white active:bg-zinc-800"
+          >
+            Kaydet
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!value) {
+    return (
+      <button
+        type="button"
+        onClick={onStartEdit}
+        className="w-full rounded-2xl border-2 border-dashed border-zinc-200 bg-white px-4 py-3 text-left text-sm text-zinc-400 active:bg-zinc-50"
+      >
+        + Açıklama ekle
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onStartEdit}
+      className="block w-full whitespace-pre-wrap rounded-2xl bg-zinc-50 px-4 py-3 text-left text-sm text-zinc-700 active:bg-zinc-100"
+    >
+      {value}
+    </button>
   );
 }
 

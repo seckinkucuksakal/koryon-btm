@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
+import { ConfirmProvider } from "./components/ConfirmDialog";
 import HomePage from "./pages/Home";
 import UnitListPage from "./pages/UnitList";
 import NewUnitPage from "./pages/NewUnit";
@@ -9,35 +10,45 @@ import RoomDetailPage from "./pages/RoomDetail";
 import NewPanelPage from "./pages/NewPanel";
 import PanelDetailPage from "./pages/PanelDetail";
 import NewDrawingPage from "./pages/NewDrawing";
+import TrashPage from "./pages/Trash";
+import ReportsPage from "./pages/Reports";
+import ReportDayPage from "./pages/ReportDay";
 
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
+      <ConfirmProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
 
-          <Route path="/units" element={<UnitListPage />} />
-          <Route path="/units/new" element={<NewUnitPage />} />
-          <Route path="/units/:id" element={<UnitDetailPage />} />
-          <Route path="/units/:id/rooms/new" element={<NewRoomPage />} />
+            <Route path="/units" element={<UnitListPage />} />
+            <Route path="/units/new" element={<NewUnitPage />} />
+            <Route path="/units/:id" element={<UnitDetailPage />} />
+            <Route path="/units/:id/rooms/new" element={<NewRoomPage />} />
 
-          <Route path="/rooms/:id" element={<RoomDetailPage />} />
-          <Route path="/rooms/:id/panels/new" element={<NewPanelPage />} />
-          <Route
-            path="/rooms/:id/drawings/new"
-            element={<NewDrawingPage target="room" />}
-          />
+            <Route path="/rooms/:id" element={<RoomDetailPage />} />
+            <Route path="/rooms/:id/panels/new" element={<NewPanelPage />} />
+            <Route
+              path="/rooms/:id/drawings/new"
+              element={<NewDrawingPage target="room" />}
+            />
 
-          <Route path="/panels/:id" element={<PanelDetailPage />} />
-          <Route
-            path="/panels/:id/drawings/new"
-            element={<NewDrawingPage target="panel" />}
-          />
+            <Route path="/panels/:id" element={<PanelDetailPage />} />
+            <Route
+              path="/panels/:id/drawings/new"
+              element={<NewDrawingPage target="panel" />}
+            />
 
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </BrowserRouter>
+            <Route path="/trash" element={<TrashPage />} />
+
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports/:date" element={<ReportDayPage />} />
+
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </BrowserRouter>
+      </ConfirmProvider>
     </AuthProvider>
   );
 }

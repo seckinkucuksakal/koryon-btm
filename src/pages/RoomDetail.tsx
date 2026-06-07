@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import EditableTitle from "../components/EditableTitle";
+import { useConfirm } from "../components/ConfirmDialog";
 import PageHeader from "../components/PageHeader";
+import PhotoTile, { softDeletePhoto } from "../components/PhotoTile";
 import PhotoUploader from "../components/PhotoUploader";
 import StorageImage from "../components/StorageImage";
 import Lightbox, { type LightboxItem } from "../components/Lightbox";
@@ -11,7 +14,6 @@ import {
   StatChip,
 } from "../components/StatChip";
 import { supabase, PANEL_TYPE_LABELS } from "../lib/supabase";
-import { deleteFromStorage } from "../lib/storage";
 import type { Database } from "../lib/database.types";
 
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
@@ -24,6 +26,7 @@ type RoomWithUnit = Room & { units: { name: string } | null };
 export default function RoomDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [room, setRoom] = useState<RoomWithUnit | null>(null);
   const [panels, setPanels] = useState<PanelStat[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -34,6 +37,7 @@ export default function RoomDetailPage() {
   const [viewer, setViewer] = useState<{
     items: LightboxItem[];
     index: number;
+    canDelete?: boolean;
   } | null>(null);
 
   const load = useCallback(async () => {
@@ -43,6 +47,7 @@ export default function RoomDetailPage() {
         .from("rooms")
         .select("*, units(name)")
         .eq("id", id)
+        .eq("visible", true)
         .maybeSingle(),
       supabase
         .from("panel_stats")
@@ -53,16 +58,19 @@ export default function RoomDetailPage() {
         .from("photos")
         .select("*")
         .eq("room_id", id)
+        .eq("visible", true)
         .order("created_at", { ascending: false }),
       supabase
         .from("drawings")
         .select("*")
         .eq("room_id", id)
+        .eq("visible", true)
         .order("created_at", { ascending: false }),
       supabase
         .from("notes")
         .select("*")
         .eq("room_id", id)
+        .eq("visible", true)
         .order("created_at", { ascending: false }),
     ]);
 
@@ -106,34 +114,119 @@ export default function RoomDetailPage() {
     );
   }
 
-  async function handleDeleteRoom() {
+  async function handleRenameRoom(next: string) {
     if (!room) return;
-    if (
-      !confirm(
-        `"${room.room_name}" odasını silmek istiyor musun? Bu işlem geri alınamaz.`,
-      )
-    ) {
-      return;
-    }
-    const paths = [
-      ...photos.map((p) => p.storage_path),
-      ...drawings.map((d) => d.storage_path),
-    ];
-    await Promise.all(paths.map((p) => deleteFromStorage(p)));
-    await supabase.from("rooms").delete().eq("id", room.id);
+    const { error } = await supabase
+      .from("rooms")
+      .update({ room_name: next, updated_at: new Date().toISOString() })
+      .eq("id", room.id);
+    if (!error) setRoom({ ...room, room_name: next });
+  }
+
+  async function handleSoftDeleteRoom() {
+    if (!room) return;
+    const ok = await confirm({
+      title: "Odayı sil",
+      message: `"${room.room_name}" odası geri dönüşüm kutusuna taşınsın mı? İçindeki panolar ve fotoğraflar saklanır, istediğinde geri yükleyebilirsin.`,
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+    await supabase
+      .from("rooms")
+      .update({
+        visible: false,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", room.id);
     navigate(`/units/${room.unit_id}`, { replace: true });
+  }
+
+  async function handleDeletePhoto(photoId: string) {
+    const ok = await confirm({
+      title: "Fotoğrafı sil",
+      message: "Bu fotoğraf silinsin mi? Geri dönüşüm kutusunda saklanır.",
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+    await softDeletePhoto(photoId);
+    await load();
+  }
+
+  async function handleDeleteCurrentLightboxPhoto() {
+    if (!viewer || !viewer.canDelete) return;
+    const current = viewer.items[viewer.index];
+    if (!current) return;
+    const photo = photos.find((p) => p.storage_path === current.path);
+    if (!photo) return;
+
+    const ok = await confirm({
+      title: "Fotoğrafı sil",
+      message: "Bu fotoğraf silinsin mi? Geri dönüşüm kutusunda saklanır.",
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    await softDeletePhoto(photo.id);
+
+    const newItems = viewer.items.filter((_, i) => i !== viewer.index);
+    if (newItems.length === 0) {
+      setViewer(null);
+    } else {
+      setViewer({
+        ...viewer,
+        items: newItems,
+        index: Math.min(viewer.index, newItems.length - 1),
+      });
+    }
+    load();
+  }
+
+  async function handleRenameCurrentLightboxPhoto(next: string) {
+    if (!viewer || !viewer.canDelete) return;
+    const current = viewer.items[viewer.index];
+    if (!current) return;
+    const photo = photos.find((p) => p.storage_path === current.path);
+    if (!photo) return;
+
+    const value = next.trim().length > 0 ? next.trim() : null;
+    await supabase.from("photos").update({ title: value }).eq("id", photo.id);
+
+    setViewer((v) =>
+      v
+        ? {
+            ...v,
+            items: v.items.map((it, i) =>
+              i === v.index ? { ...it, title: value ?? "" } : it,
+            ),
+          }
+        : v,
+    );
+    setPhotos((prev) =>
+      prev.map((p) => (p.id === photo.id ? { ...p, title: value } : p)),
+    );
   }
 
   return (
     <>
       <PageHeader
-        title={room.room_name}
+        title={
+          <EditableTitle
+            value={room.room_name}
+            onSave={handleRenameRoom}
+            ariaLabel="Oda adını düzenle"
+            placeholder="Oda adı"
+          />
+        }
         subtitle={room.units?.name}
         back
         right={
           <button
             type="button"
-            onClick={handleDeleteRoom}
+            onClick={handleSoftDeleteRoom}
             aria-label="Odayı Sil"
             className="flex h-12 w-12 items-center justify-center rounded-xl text-rose-600 active:bg-rose-50"
           >
@@ -217,25 +310,23 @@ export default function RoomDetailPage() {
           {photos.length > 0 && (
             <div className="mt-3 grid grid-cols-3 gap-2 md:grid-cols-4">
               {photos.map((ph, i) => (
-                <button
-                  type="button"
+                <PhotoTile
                   key={ph.id}
-                  onClick={() =>
+                  path={ph.storage_path}
+                  title={ph.title}
+                  onOpen={() =>
                     setViewer({
                       items: photos.map((p, idx) => ({
                         path: p.storage_path,
-                        title: `Oda Fotoğrafı ${idx + 1}`,
+                        title: p.title ?? "",
+                        fallbackLabel: `Oda Fotoğrafı ${idx + 1}`,
                       })),
                       index: i,
+                      canDelete: true,
                     })
                   }
-                  className="overflow-hidden rounded-xl active:opacity-80 md:hover:opacity-90"
-                >
-                  <StorageImage
-                    path={ph.storage_path}
-                    className="aspect-square w-full rounded-xl object-cover"
-                  />
-                </button>
+                  onDelete={() => handleDeletePhoto(ph.id)}
+                />
               ))}
             </div>
           )}
@@ -274,7 +365,9 @@ export default function RoomDetailPage() {
                 >
                   <StorageImage
                     path={d.storage_path}
-                    className="aspect-[4/3] w-full object-contain"
+                    className="aspect-[4/3] w-full"
+                    fit="contain"
+                    thumbWidth={800}
                   />
                   <div className="px-3 py-2 text-xs text-zinc-500">
                     {new Date(d.created_at).toLocaleString("tr-TR")}
@@ -295,6 +388,12 @@ export default function RoomDetailPage() {
           onClose={() => setViewer(null)}
           onIndexChange={(i) =>
             setViewer((v) => (v ? { ...v, index: i } : v))
+          }
+          onDelete={
+            viewer.canDelete ? handleDeleteCurrentLightboxPhoto : undefined
+          }
+          onRename={
+            viewer.canDelete ? handleRenameCurrentLightboxPhoto : undefined
           }
         />
       )}
@@ -363,7 +462,10 @@ function NotesSection({
   }
 
   async function remove(noteId: string) {
-    await supabase.from("notes").delete().eq("id", noteId);
+    await supabase
+      .from("notes")
+      .update({ visible: false, deleted_at: new Date().toISOString() })
+      .eq("id", noteId);
     onChange();
   }
 
@@ -435,3 +537,4 @@ function TrashIcon({ size = 22 }: { size?: number }) {
     </svg>
   );
 }
+

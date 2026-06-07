@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useConfirm } from "../components/ConfirmDialog";
+import EditableTitle from "../components/EditableTitle";
 import PageHeader from "../components/PageHeader";
+import PhotoTile, { softDeletePhoto } from "../components/PhotoTile";
 import PhotoUploader from "../components/PhotoUploader";
 import StorageImage from "../components/StorageImage";
 import Lightbox, { type LightboxItem } from "../components/Lightbox";
 import { PANEL_TYPE_LABELS, supabase } from "../lib/supabase";
-import { deleteFromStorage } from "../lib/storage";
 import type { Database } from "../lib/database.types";
 
 type Panel = Database["public"]["Tables"]["panels"]["Row"];
@@ -16,6 +18,7 @@ type Drawing = Database["public"]["Tables"]["drawings"]["Row"];
 export default function PanelDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [panel, setPanel] = useState<Panel | null>(null);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -25,26 +28,35 @@ export default function PanelDetailPage() {
   const [viewer, setViewer] = useState<{
     items: LightboxItem[];
     index: number;
+    canDelete?: boolean;
   } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
     const [p, e, ph, dr] = await Promise.all([
-      supabase.from("panels").select("*").eq("id", id).maybeSingle(),
+      supabase
+        .from("panels")
+        .select("*")
+        .eq("id", id)
+        .eq("visible", true)
+        .maybeSingle(),
       supabase
         .from("equipment")
         .select("*")
         .eq("panel_id", id)
+        .eq("visible", true)
         .order("created_at", { ascending: true }),
       supabase
         .from("photos")
         .select("*")
         .eq("panel_id", id)
+        .eq("visible", true)
         .order("created_at", { ascending: false }),
       supabase
         .from("drawings")
         .select("*")
         .eq("panel_id", id)
+        .eq("visible", true)
         .order("created_at", { ascending: false }),
     ]);
 
@@ -65,16 +77,96 @@ export default function PanelDetailPage() {
     load();
   }, [load]);
 
-  async function handleDeletePanel() {
+  async function handleRenamePanel(next: string) {
     if (!panel) return;
-    if (!confirm(`"${panel.name}" panosunu silmek istiyor musun?`)) return;
-    const paths = [
-      ...photos.map((p) => p.storage_path),
-      ...drawings.map((d) => d.storage_path),
-    ];
-    await Promise.all(paths.map((p) => deleteFromStorage(p)));
-    await supabase.from("panels").delete().eq("id", panel.id);
+    const { error } = await supabase
+      .from("panels")
+      .update({ name: next })
+      .eq("id", panel.id);
+    if (!error) setPanel({ ...panel, name: next });
+  }
+
+  async function handleSoftDeletePanel() {
+    if (!panel) return;
+    const ok = await confirm({
+      title: "Panoyu sil",
+      message: `"${panel.name}" panosu geri dönüşüm kutusuna taşınsın mı? İçeriği saklanır, istediğinde geri yükleyebilirsin.`,
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+    await supabase
+      .from("panels")
+      .update({ visible: false, deleted_at: new Date().toISOString() })
+      .eq("id", panel.id);
     navigate(`/rooms/${panel.room_id}`, { replace: true });
+  }
+
+  async function handleDeletePhoto(photoId: string) {
+    const ok = await confirm({
+      title: "Fotoğrafı sil",
+      message: "Bu fotoğraf silinsin mi? Geri dönüşüm kutusunda saklanır.",
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+    await softDeletePhoto(photoId);
+    await load();
+  }
+
+  async function handleDeleteCurrentLightboxPhoto() {
+    if (!viewer || !viewer.canDelete) return;
+    const current = viewer.items[viewer.index];
+    if (!current) return;
+    const photo = photos.find((p) => p.storage_path === current.path);
+    if (!photo) return;
+
+    const ok = await confirm({
+      title: "Fotoğrafı sil",
+      message: "Bu fotoğraf silinsin mi? Geri dönüşüm kutusunda saklanır.",
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    await softDeletePhoto(photo.id);
+
+    const newItems = viewer.items.filter((_, i) => i !== viewer.index);
+    if (newItems.length === 0) {
+      setViewer(null);
+    } else {
+      setViewer({
+        ...viewer,
+        items: newItems,
+        index: Math.min(viewer.index, newItems.length - 1),
+      });
+    }
+    load();
+  }
+
+  async function handleRenameCurrentLightboxPhoto(next: string) {
+    if (!viewer || !viewer.canDelete) return;
+    const current = viewer.items[viewer.index];
+    if (!current) return;
+    const photo = photos.find((p) => p.storage_path === current.path);
+    if (!photo) return;
+
+    const value = next.trim().length > 0 ? next.trim() : null;
+    await supabase.from("photos").update({ title: value }).eq("id", photo.id);
+
+    setViewer((v) =>
+      v
+        ? {
+            ...v,
+            items: v.items.map((it, i) =>
+              i === v.index ? { ...it, title: value ?? "" } : it,
+            ),
+          }
+        : v,
+    );
+    setPhotos((prev) =>
+      prev.map((p) => (p.id === photo.id ? { ...p, title: value } : p)),
+    );
   }
 
   if (loading) {
@@ -102,7 +194,14 @@ export default function PanelDetailPage() {
   return (
     <>
       <PageHeader
-        title={panel.name}
+        title={
+          <EditableTitle
+            value={panel.name}
+            onSave={handleRenamePanel}
+            ariaLabel="Pano adını düzenle"
+            placeholder="Pano adı"
+          />
+        }
         subtitle={
           PANEL_TYPE_LABELS[panel.panel_type as keyof typeof PANEL_TYPE_LABELS] ??
           panel.panel_type
@@ -111,7 +210,7 @@ export default function PanelDetailPage() {
         right={
           <button
             type="button"
-            onClick={handleDeletePanel}
+            onClick={handleSoftDeletePanel}
             aria-label="Panoyu Sil"
             className="flex h-12 w-12 items-center justify-center rounded-xl text-rose-600 active:bg-rose-50"
           >
@@ -162,25 +261,23 @@ export default function PanelDetailPage() {
           {photos.length > 0 && (
             <div className="mt-3 grid grid-cols-3 gap-2 md:grid-cols-4">
               {photos.map((ph, i) => (
-                <button
-                  type="button"
+                <PhotoTile
                   key={ph.id}
-                  onClick={() =>
+                  path={ph.storage_path}
+                  title={ph.title}
+                  onOpen={() =>
                     setViewer({
                       items: photos.map((p, idx) => ({
                         path: p.storage_path,
-                        title: `${panel.name} — Foto ${idx + 1}`,
+                        title: p.title ?? "",
+                        fallbackLabel: `${panel.name} — Foto ${idx + 1}`,
                       })),
                       index: i,
+                      canDelete: true,
                     })
                   }
-                  className="overflow-hidden rounded-xl active:opacity-80 md:hover:opacity-90"
-                >
-                  <StorageImage
-                    path={ph.storage_path}
-                    className="aspect-square w-full rounded-xl object-cover"
-                  />
-                </button>
+                  onDelete={() => handleDeletePhoto(ph.id)}
+                />
               ))}
             </div>
           )}
@@ -225,7 +322,9 @@ export default function PanelDetailPage() {
                 >
                   <StorageImage
                     path={d.storage_path}
-                    className="aspect-[4/3] w-full object-contain"
+                    className="aspect-[4/3] w-full"
+                    fit="contain"
+                    thumbWidth={800}
                   />
                   <div className="px-3 py-2 text-xs text-zinc-500">
                     {new Date(d.created_at).toLocaleString("tr-TR")}
@@ -244,6 +343,12 @@ export default function PanelDetailPage() {
           onClose={() => setViewer(null)}
           onIndexChange={(i) =>
             setViewer((v) => (v ? { ...v, index: i } : v))
+          }
+          onDelete={
+            viewer.canDelete ? handleDeleteCurrentLightboxPhoto : undefined
+          }
+          onRename={
+            viewer.canDelete ? handleRenameCurrentLightboxPhoto : undefined
           }
         />
       )}
@@ -330,6 +435,7 @@ function EquipmentRow({
   equipment: Equipment;
   onChange: () => void;
 }) {
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(equipment.name);
   const [description, setDescription] = useState(equipment.description ?? "");
@@ -350,8 +456,17 @@ function EquipmentRow({
   }
 
   async function remove() {
-    if (!confirm(`"${equipment.name}" silinsin mi?`)) return;
-    await supabase.from("equipment").delete().eq("id", equipment.id);
+    const ok = await confirm({
+      title: "Ekipmanı sil",
+      message: `"${equipment.name}" silinsin mi? Geri dönüşüm kutusunda saklanır.`,
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+    await supabase
+      .from("equipment")
+      .update({ visible: false, deleted_at: new Date().toISOString() })
+      .eq("id", equipment.id);
     onChange();
   }
 

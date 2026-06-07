@@ -1,10 +1,11 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 type Props = {
-  title: string;
-  subtitle?: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
   back?: boolean;
-  right?: React.ReactNode;
+  right?: ReactNode;
 };
 
 export default function PageHeader({ title, subtitle, back, right }: Props) {
@@ -34,10 +35,19 @@ export default function PageHeader({ title, subtitle, back, right }: Props) {
           </button>
         )}
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold text-zinc-900">{title}</h1>
-          {subtitle && (
-            <p className="truncate text-sm text-zinc-500">{subtitle}</p>
+          {typeof title === "string" ? (
+            <h1 className="truncate text-lg font-semibold text-zinc-900">
+              {title}
+            </h1>
+          ) : (
+            <div className="min-w-0">{title}</div>
           )}
+          {subtitle &&
+            (typeof subtitle === "string" ? (
+              <p className="truncate text-sm text-zinc-500">{subtitle}</p>
+            ) : (
+              <div className="text-sm text-zinc-500">{subtitle}</div>
+            ))}
         </div>
         {right}
       </div>

@@ -12,10 +12,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_reports: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          humidity: string | null
+          id: string
+          important_notes: string | null
+          report_date: string
+          report_no: number | null
+          temperature: string | null
+          today_tasks: Json
+          tomorrow_tasks: Json
+          updated_at: string
+          user_id: string | null
+          visible: boolean
+          weather: string | null
+          wind: string | null
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          humidity?: string | null
+          id?: string
+          important_notes?: string | null
+          report_date: string
+          report_no?: number | null
+          temperature?: string | null
+          today_tasks?: Json
+          tomorrow_tasks?: Json
+          updated_at?: string
+          user_id?: string | null
+          visible?: boolean
+          weather?: string | null
+          wind?: string | null
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          humidity?: string | null
+          id?: string
+          important_notes?: string | null
+          report_date?: string
+          report_no?: number | null
+          temperature?: string | null
+          today_tasks?: Json
+          tomorrow_tasks?: Json
+          updated_at?: string
+          user_id?: string | null
+          visible?: boolean
+          weather?: string | null
+          wind?: string | null
+        }
+        Relationships: []
+      }
       drawings: {
         Row: {
           created_at: string
           data: Json | null
+          deleted_at: string | null
           id: string
           kind: string
           panel_id: string | null
@@ -23,10 +78,12 @@ export type Database = {
           storage_path: string
           title: string | null
           user_id: string
+          visible: boolean
         }
         Insert: {
           created_at?: string
           data?: Json | null
+          deleted_at?: string | null
           id?: string
           kind?: string
           panel_id?: string | null
@@ -34,10 +91,12 @@ export type Database = {
           storage_path: string
           title?: string | null
           user_id?: string
+          visible?: boolean
         }
         Update: {
           created_at?: string
           data?: Json | null
+          deleted_at?: string | null
           id?: string
           kind?: string
           panel_id?: string | null
@@ -45,33 +104,40 @@ export type Database = {
           storage_path?: string
           title?: string | null
           user_id?: string
+          visible?: boolean
         }
         Relationships: []
       }
       equipment: {
         Row: {
           created_at: string
+          deleted_at: string | null
           description: string | null
           id: string
           name: string
           panel_id: string
           user_id: string
+          visible: boolean
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           name: string
           panel_id: string
           user_id?: string
+          visible?: boolean
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           name?: string
           panel_id?: string
           user_id?: string
+          visible?: boolean
         }
         Relationships: [
           {
@@ -94,23 +160,29 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          deleted_at: string | null
           id: string
           room_id: string
           user_id: string
+          visible: boolean
         }
         Insert: {
           content: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           room_id: string
           user_id?: string
+          visible?: boolean
         }
         Update: {
           content?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           room_id?: string
           user_id?: string
+          visible?: boolean
         }
         Relationships: [
           {
@@ -132,30 +204,36 @@ export type Database = {
       panels: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           name: string
           notes: string | null
           panel_type: string
           room_id: string
           user_id: string
+          visible: boolean
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name: string
           notes?: string | null
           panel_type: string
           room_id: string
           user_id?: string
+          visible?: boolean
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name?: string
           notes?: string | null
           panel_type?: string
           room_id?: string
           user_id?: string
+          visible?: boolean
         }
         Relationships: [
           {
@@ -177,32 +255,41 @@ export type Database = {
       photos: {
         Row: {
           created_at: string
+          deleted_at: string | null
           height: number | null
           id: string
           panel_id: string | null
           room_id: string | null
           storage_path: string
+          title: string | null
           user_id: string
+          visible: boolean
           width: number | null
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           height?: number | null
           id?: string
           panel_id?: string | null
           room_id?: string | null
           storage_path: string
+          title?: string | null
           user_id?: string
+          visible?: boolean
           width?: number | null
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           height?: number | null
           id?: string
           panel_id?: string | null
           room_id?: string | null
           storage_path?: string
+          title?: string | null
           user_id?: string
+          visible?: boolean
           width?: number | null
         }
         Relationships: [
@@ -239,30 +326,36 @@ export type Database = {
       rooms: {
         Row: {
           created_at: string
+          deleted_at: string | null
           description: string | null
           id: string
           room_name: string
           unit_id: string
           updated_at: string
           user_id: string
+          visible: boolean
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           room_name: string
           unit_id: string
           updated_at?: string
           user_id?: string
+          visible?: boolean
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           room_name?: string
           unit_id?: string
           updated_at?: string
           user_id?: string
+          visible?: boolean
         }
         Relationships: [
           {
@@ -284,27 +377,36 @@ export type Database = {
       units: {
         Row: {
           created_at: string
+          deleted_at: string | null
           description: string | null
           id: string
           name: string
+          sort_order: number
           updated_at: string
           user_id: string
+          visible: boolean
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           name: string
+          sort_order?: number
           updated_at?: string
           user_id?: string
+          visible?: boolean
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           id?: string
           name?: string
+          sort_order?: number
           updated_at?: string
           user_id?: string
+          visible?: boolean
         }
         Relationships: []
       }
@@ -431,6 +533,7 @@ export type Database = {
           panel_count: number | null
           photo_count: number | null
           room_count: number | null
+          sort_order: number | null
           updated_at: string | null
           user_id: string | null
         }
@@ -443,6 +546,7 @@ export type Database = {
           panel_count?: never
           photo_count?: never
           room_count?: never
+          sort_order?: number | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -455,6 +559,7 @@ export type Database = {
           panel_count?: never
           photo_count?: never
           room_count?: never
+          sort_order?: number | null
           updated_at?: string | null
           user_id?: string | null
         }
