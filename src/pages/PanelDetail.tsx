@@ -518,6 +518,269 @@ function getChainLabel(leafId: string, allEq: Equipment[]): string {
   return parts.join(" → ");
 }
 
+/** Busbar dahil tüm ata zincirini [root → ... → item] sıralamasıyla döner */
+function buildAncestorChain(item: Equipment, allEq: Equipment[]): Equipment[] {
+  const chain: Equipment[] = [item];
+  let cur = item;
+  for (let i = 0; i < 20; i++) {
+    if (!cur.parent_id) break;
+    const parent = allEq.find((e) => e.id === cur.parent_id);
+    if (!parent) break;
+    chain.unshift(parent);
+    cur = parent;
+  }
+  return chain;
+}
+
+// ── Ekipman tipi grupları (zincire ekleme formu için) ──────────────────────────
+
+const ADD_EQ_GROUPS = [
+  {
+    label: "Koruma Şalterleri",
+    color: "blue",
+    items: [
+      { value: "tms",              label: "TMŞ" },
+      { value: "mccb",             label: "MCCB" },
+      { value: "mcb",              label: "MCB" },
+      { value: "acb",              label: "ACB" },
+      { value: "fuse_switch",      label: "Sigorta" },
+      { value: "load_break_switch",label: "YGŞ" },
+      { value: "mks",              label: "MKŞ" },
+    ],
+  },
+  {
+    label: "Sürücüler",
+    color: "orange",
+    items: [
+      { value: "vfd",          label: "VFD" },
+      { value: "soft_starter", label: "Soft Starter" },
+      { value: "dol",          label: "DOL" },
+      { value: "star_delta",   label: "Y-Δ" },
+    ],
+  },
+  {
+    label: "Kontrol",
+    color: "purple",
+    items: [
+      { value: "kontaktor",      label: "Kontaktör" },
+      { value: "role",           label: "Röle" },
+      { value: "koruma_role",    label: "Koruma Rölesi" },
+      { value: "yardimci_role",  label: "Yardımcı Röle" },
+    ],
+  },
+  {
+    label: "Ölçüm",
+    color: "teal",
+    items: [
+      { value: "ct",               label: "Akım Trafosu (CT)" },
+      { value: "pt",               label: "Gerilim Trafosu (PT)" },
+      { value: "enerji_analizoru", label: "Enerji Analizörü" },
+    ],
+  },
+  {
+    label: "Otomasyon",
+    color: "gray",
+    items: [
+      { value: "plc",       label: "PLC" },
+      { value: "io_modulu", label: "I/O Modülü" },
+      { value: "timer",     label: "Zamanlayıcı" },
+    ],
+  },
+  {
+    label: "Kablo",
+    color: "red",
+    items: [
+      { value: "guc_kablosu",      label: "Güç Kablosu" },
+      { value: "kontrol_kablosu",  label: "Kontrol Kablosu" },
+    ],
+  },
+] as const;
+
+const COLOR_MAP: Record<string, string> = {
+  blue:   "bg-blue-50 border-blue-200 text-blue-700",
+  orange: "bg-orange-50 border-orange-200 text-orange-700",
+  purple: "bg-purple-50 border-purple-200 text-purple-700",
+  teal:   "bg-teal-50 border-teal-200 text-teal-700",
+  gray:   "bg-zinc-50 border-zinc-200 text-zinc-600",
+  red:    "bg-red-50 border-red-200 text-red-700",
+};
+
+// ── Inline "zincire ekle" formu ────────────────────────────────────────────────
+
+function AddToChainForm({
+  feederItem,
+  allEquipment,
+  onSaved,
+  onClose,
+}: {
+  feederItem: Equipment;
+  allEquipment: Equipment[];
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const chain = buildAncestorChain(feederItem, allEquipment);
+  // Varsayılan: yükten hemen önceye ekle (yükün parent'ından sonra)
+  const [insertAfterIdx, setInsertAfterIdx] = useState(chain.length - 2); // -1 = en başa
+  const [selType, setSelType] = useState<string>("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  async function save() {
+    if (!selType) { setError("Ekipman tipi seç"); return; }
+    if (!name.trim()) { setError("Ekipman adı gir"); return; }
+    setBusy(true);
+    setError("");
+
+    // insertAfterIdx: chain[insertAfterIdx] den sonrasına ekle
+    // -1 ise en başa (parent yok, busbar varsa busbar sonrası mantıklı)
+    const parentItem = insertAfterIdx >= 0 ? chain[insertAfterIdx] : null;
+    const childItem  = chain[insertAfterIdx + 1]; // bu item'ın parent_id'si değişecek
+
+    const { data: newEq, error: insErr } = await supabase
+      .from("equipment")
+      .insert({
+        panel_id: feederItem.panel_id,
+        parent_id: parentItem?.id ?? null,
+        name: name.trim(),
+        equipment_type: selType,
+      })
+      .select("id")
+      .single();
+
+    if (insErr || !newEq) { setError("Kayıt hatası"); setBusy(false); return; }
+
+    // Eski child'ın parent'ını yeni item'a bağla
+    await supabase.from("equipment").update({ parent_id: newEq.id }).eq("id", childItem.id);
+
+    setBusy(false);
+    onSaved();
+  }
+
+  return (
+    <li className="bg-zinc-50 border-t-2 border-dashed border-blue-200 px-4 py-4 space-y-3">
+      {/* Zincir + ekleme noktası seçici */}
+      <div>
+        <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+          Nereye eklensin?
+        </p>
+        <div className="flex flex-wrap items-center gap-1">
+          {chain.map((item, idx) => {
+            const isLoad = item.id === feederItem.id;
+            const label = item.equipment_type
+              ? (EQ_TYPE_LABEL[item.equipment_type] ?? item.equipment_type)
+              : item.name;
+            const isActive = insertAfterIdx === idx - 1;
+            return (
+              <span key={item.id} className="flex items-center gap-1">
+                {/* Ekleme noktası: item'dan önce */}
+                <button
+                  type="button"
+                  onClick={() => setInsertAfterIdx(idx - 1)}
+                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-colors ${
+                    isActive
+                      ? "border-blue-500 bg-blue-500 text-white"
+                      : "border-zinc-300 bg-white text-zinc-400 hover:border-blue-400"
+                  }`}
+                  title={`${item.name} öncesine ekle`}
+                >
+                  {isActive ? "✓" : "+"}
+                </button>
+                <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold border ${
+                  isLoad
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : item.equipment_type === "busbar"
+                    ? "bg-zinc-900 text-white border-zinc-900"
+                    : "bg-white border-zinc-200 text-zinc-600"
+                }`}>
+                  {label}
+                </span>
+              </span>
+            );
+          })}
+          {/* Ekleme noktası: en sona (yükten sonra) */}
+          <button
+            type="button"
+            onClick={() => setInsertAfterIdx(chain.length - 1)}
+            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-colors ${
+              insertAfterIdx === chain.length - 1
+                ? "border-blue-500 bg-blue-500 text-white"
+                : "border-zinc-300 bg-white text-zinc-400 hover:border-blue-400"
+            }`}
+            title="En sona ekle"
+          >
+            {insertAfterIdx === chain.length - 1 ? "✓" : "+"}
+          </button>
+        </div>
+      </div>
+
+      {/* Tip seçici */}
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+          Ekipman tipi
+        </p>
+        {ADD_EQ_GROUPS.map((group) => (
+          <div key={group.label}>
+            <p className="text-[10px] font-semibold text-zinc-400 mb-1">{group.label}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {group.items.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => {
+                    setSelType(item.value);
+                    setError("");
+                    setTimeout(() => nameRef.current?.focus(), 50);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${
+                    selType === item.value
+                      ? "bg-zinc-900 border-zinc-900 text-white"
+                      : `${COLOR_MAP[group.color]} hover:opacity-80`
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* İsim */}
+      <input
+        ref={nameRef}
+        value={name}
+        onChange={(e) => { setName(e.target.value); setError(""); }}
+        placeholder="Ekipman adı (örn: KNT-101)"
+        autoComplete="off"
+        className="w-full rounded-xl border-2 border-zinc-200 bg-white px-3 py-2.5 text-base outline-none focus:border-zinc-900"
+        onKeyDown={(e) => e.key === "Enter" && save()}
+      />
+
+      {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 rounded-xl border-2 border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600 active:bg-zinc-50"
+        >
+          Vazgeç
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy}
+          className="flex-1 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white active:bg-blue-700 disabled:opacity-50"
+        >
+          {busy ? "Ekleniyor…" : "Zincire Ekle"}
+        </button>
+      </div>
+    </li>
+  );
+}
+
 /**
  * Fideri ve zincirdeki "artık çocuğu kalmayan" tüm ata ekipmanları siler.
  * Örn: P-101 silinince CT → TMŞ → BUSBAR da silinir (başka çocukları yoksa).
@@ -569,16 +832,29 @@ function FiderRow({
   allEquipment: Equipment[];
   onChange: () => void;
 }) {
+  const [adding, setAdding] = useState(false);
   const typeLabel = eq.equipment_type ? (EQ_TYPE_LABEL[eq.equipment_type] ?? eq.equipment_type) : null;
   const chain = getChainLabel(eq.id, allEquipment);
   return (
-    <EquipmentRow
-      equipment={eq}
-      allEquipment={allEquipment}
-      onChange={onChange}
-      typeShort={typeLabel}
-      chainLabel={chain}
-    />
+    <>
+      <EquipmentRow
+        equipment={eq}
+        allEquipment={allEquipment}
+        onChange={onChange}
+        typeShort={typeLabel}
+        chainLabel={chain}
+        onAdd={() => setAdding((v) => !v)}
+        addActive={adding}
+      />
+      {adding && (
+        <AddToChainForm
+          feederItem={eq}
+          allEquipment={allEquipment}
+          onSaved={() => { setAdding(false); onChange(); }}
+          onClose={() => setAdding(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -588,12 +864,16 @@ function EquipmentRow({
   onChange,
   typeShort,
   chainLabel,
+  onAdd,
+  addActive,
 }: {
   equipment: Equipment;
   allEquipment: Equipment[];
   onChange: () => void;
   typeShort?: string | null;
   chainLabel?: string;
+  onAdd?: () => void;
+  addActive?: boolean;
 }) {
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -693,6 +973,21 @@ function EquipmentRow({
           <div className="mt-0.5 text-sm text-zinc-500">{equipment.description}</div>
         )}
       </button>
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label="Ekipman ekle"
+          title="Zincire ekipman ekle"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold transition-colors ${
+            addActive
+              ? "bg-blue-600 text-white"
+              : "text-blue-500 active:bg-blue-50"
+          }`}
+        >
+          +
+        </button>
+      )}
       <button
         type="button"
         onClick={remove}
