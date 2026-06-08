@@ -50,7 +50,6 @@ function getColor(type: string | null): EColor {
   return "gray";
 }
 
-const IS_LOAD = new Set(["motor","pompa","fan","heater","ups","alt_pano","jb","aydinlatma","diger"]);
 const IS_SWITCH = new Set(["tms","mccb","mcb","acb","fuse_switch","load_break_switch"]);
 const IS_CIRCLE_LOAD = new Set(["motor","pompa","fan"]);
 

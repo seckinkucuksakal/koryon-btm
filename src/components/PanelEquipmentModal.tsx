@@ -280,14 +280,18 @@ export default function PanelEquipmentModal({
           if (draft.details[f.key]) meta[f.key] = draft.details[f.key];
         });
       }
-      const { data } = await supabase.from("equipment").insert({
-        panel_id: panel.id,
-        name: n.label,
-        equipment_type: n.type,
-        parent_id: prevId,
-        sort_order: ord++,
-        metadata: meta as Json,
-      }).select().single();
+      const { data }: { data: { id: string } | null } = await supabase
+        .from("equipment")
+        .insert({
+          panel_id: panel.id,
+          name: n.label,
+          equipment_type: n.type,
+          parent_id: prevId,
+          sort_order: ord++,
+          metadata: meta as Json,
+        })
+        .select("id")
+        .single();
       if (data) prevId = data.id;
     }
     setSaving(false);

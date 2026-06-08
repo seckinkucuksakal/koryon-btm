@@ -538,9 +538,9 @@ async function cascadeDeleteFider(item: Equipment, allEq: Equipment[]) {
 
   // 2. Zinciri yukarı dolaş; başka çocuğu kalmayan her atayı sil
   let cur: Equipment | undefined = item;
-  while (cur?.parent_id) {
-    const parentId = cur.parent_id;
-    const parent = allEq.find((e) => e.id === parentId);
+  while (cur && cur.parent_id) {
+    const parentId: string = cur.parent_id;
+    const parent: Equipment | undefined = allEq.find((e) => e.id === parentId);
     if (!parent) break;
     const remainingChildren = allEq.filter(
       (e) => e.parent_id === parentId && !deletedIds.has(e.id),
