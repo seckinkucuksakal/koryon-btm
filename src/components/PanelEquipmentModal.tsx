@@ -244,10 +244,23 @@ export default function PanelEquipmentModal({
   const [draft, setDraft] = useState<FiderDraft>(INIT);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"wizard" | "diagram">("wizard");
 
+  // ── iOS-safe body scroll lock ──────────────────────────────────────────────
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    const scrollY = window.scrollY;
+    const body = document.body;
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.position = "";
+      body.style.top = "";
+      body.style.width = "";
+      body.style.overflow = "";
+      window.scrollTo(0, scrollY);
+    };
   }, []);
 
   const load = useCallback(async () => {
@@ -314,7 +327,12 @@ export default function PanelEquipmentModal({
     PANEL_TYPE_LABELS[panel.panel_type as keyof typeof PANEL_TYPE_LABELS] ?? panel.panel_type;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#f1f5f9" }}>
+    // touch-action:none → mobilde kaydırma olayları modal'dan dışarı sızmaz
+    <div
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ background: "#f1f5f9", touchAction: "none" }}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
       {/* ── Header ── */}
       <header className="shrink-0 flex items-center gap-3 bg-zinc-900 px-4 py-3">
         {/* Download button — left */}
@@ -349,52 +367,98 @@ export default function PanelEquipmentModal({
         </button>
       </header>
 
-      {/* ── Body ── */}
-      <div className="flex flex-1 overflow-hidden" style={{ maxWidth: 1400, margin: "0 auto", width: "100%" }}>
+      {/* ── Mobil tab bar (md'de gizli) ── */}
+      <div className="md:hidden shrink-0 flex border-b border-zinc-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setMobileTab("wizard")}
+          className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+            mobileTab === "wizard"
+              ? "border-b-2 border-zinc-900 text-zinc-900"
+              : "text-zinc-400"
+          }`}
+        >
+          Sihirbaz
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab("diagram")}
+          className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+            mobileTab === "diagram"
+              ? "border-b-2 border-zinc-900 text-zinc-900"
+              : "text-zinc-400"
+          }`}
+        >
+          Tek Hat
+          {equipment.length > 0 && (
+            <span className="ml-1.5 rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500">
+              {equipment.filter((e) => LOAD_TYPES.some((l) => l.v === e.equipment_type)).length}
+            </span>
+          )}
+        </button>
+      </div>
 
-        {/* Left: single-line diagram */}
-        <div className="hidden md:flex md:w-[55%] flex-col border-r border-zinc-200 bg-white overflow-hidden">
+      {/* ── Body ── */}
+      <div
+        className="flex flex-1 overflow-hidden"
+        style={{ maxWidth: 1400, margin: "0 auto", width: "100%" }}
+      >
+        {/* Left: single-line diagram — desktop her zaman, mobilde "Tek Hat" tabı seçiliyse */}
+        <div
+          className={`flex flex-col border-r border-zinc-200 bg-white overflow-hidden
+            ${mobileTab === "diagram" ? "flex w-full" : "hidden"}
+            md:flex md:w-[55%]`}
+        >
           <div className="shrink-0 px-4 py-2 border-b border-zinc-100 flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tek Hat Diyagramı</p>
             <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
               {equipment.filter((e) => !e.parent_id).length} fider
             </span>
           </div>
-          <div className="flex-1 overflow-auto">
+          {/* touch-action:pan-x pan-y → diyagram alanı scroll edilebilir */}
+          <div className="flex-1 overflow-auto" style={{ touchAction: "pan-x pan-y" }}>
             <SingleLineDiagram equipment={equipment} />
           </div>
         </div>
 
-        {/* Right: wizard */}
-        <div className="flex flex-1 flex-col overflow-hidden bg-white md:bg-transparent">
-
-          {/* Mobile: compact chain strip */}
+        {/* Right: wizard — desktop her zaman, mobilde "Sihirbaz" tabı seçiliyse */}
+        <div
+          className={`flex-col overflow-hidden bg-white md:bg-transparent
+            ${mobileTab === "wizard" ? "flex w-full" : "hidden"}
+            md:flex md:flex-1`}
+        >
+          {/* Mobil: mevcut zincir özeti */}
           {step < 7 && buildChain(draft).length > 0 && (
-            <div className="md:hidden shrink-0 border-b border-zinc-200 bg-white px-4 py-2">
-              <div className="flex items-center gap-1 overflow-x-auto">
+            <div className="md:hidden shrink-0 border-b border-zinc-200 bg-zinc-50 px-4 py-2">
+              <div className="flex items-center gap-1 overflow-x-auto" style={{ touchAction: "pan-x" }}>
                 {buildChain(draft).map((n, i) => (
                   <span key={i} className="flex shrink-0 items-center gap-1 text-xs font-bold text-zinc-700">
                     {i > 0 && <span className="text-zinc-300">└</span>}
-                    <span className="rounded bg-zinc-100 px-2 py-0.5">{n.label}</span>
+                    <span className="rounded bg-white border border-zinc-200 px-2 py-0.5">{n.label}</span>
                   </span>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="flex flex-1 flex-col overflow-y-auto">
-            <WizardArea
-              step={step}
-              draft={draft}
-              upd={upd}
-              onNext={() => setStep((s) => s + 1)}
-              onBack={() => setStep((s) => Math.max(0, s - 1))}
-              onSave={saveFider}
-              onNewFider={resetWizard}
-              onClose={handleClose}
-              saving={saving}
-              preview={buildChain(draft)}
-            />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div
+              className="flex-1 overflow-y-auto"
+              style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+            >
+              <WizardArea
+                step={step}
+                draft={draft}
+                upd={upd}
+                onNext={() => setStep((s) => s + 1)}
+                onBack={() => setStep((s) => Math.max(0, s - 1))}
+                onSave={saveFider}
+                onNewFider={resetWizard}
+                onClose={handleClose}
+                saving={saving}
+                preview={buildChain(draft)}
+              />
+            </div>
           </div>
         </div>
       </div>
