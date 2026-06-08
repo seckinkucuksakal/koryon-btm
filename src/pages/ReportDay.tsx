@@ -38,14 +38,21 @@ function formatDateLabel(dateStr: string): string {
   return `${d.getDate()} ${TR_MONTHS[d.getMonth()]} ${d.getFullYear()} ${TR_WEEKDAYS[d.getDay()]}`;
 }
 
+function isWeekend(d: Date): boolean {
+  const w = d.getDay();
+  return w === 0 || w === 6;
+}
+
+/** Önceki iş gününü döndürür (Cumartesi/Pazar atlanır). */
 function prevDateStr(dateStr: string): string | null {
   const d = new Date(dateStr + "T00:00:00");
   const prev = new Date(d);
-  prev.setDate(prev.getDate() - 1);
-  const prevStr = toDateStr(prev);
   const startStr = toDateStr(START_DATE);
-  if (prevStr < startStr) return null;
-  return prevStr;
+  do {
+    prev.setDate(prev.getDate() - 1);
+    if (toDateStr(prev) < startStr) return null;
+  } while (isWeekend(prev));
+  return toDateStr(prev);
 }
 
 function todayStr(): string {
@@ -180,6 +187,18 @@ export default function ReportDayPage() {
 
   const dateStr = dateParam ?? todayStr();
   const isToday = dateStr === todayStr();
+  const isWeekendDay = isWeekend(new Date(dateStr + "T00:00:00"));
+
+  // Cumartesi/Pazar i\u00e7in rapor giri\u015fi yok \u2014 listeye geri d\u00f6n
+  useEffect(() => {
+    if (isWeekendDay) {
+      navigate("/reports", { replace: true });
+    }
+  }, [isWeekendDay, navigate]);
+
+  if (isWeekendDay) {
+    return null;
+  }
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

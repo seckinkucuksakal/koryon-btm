@@ -24,12 +24,17 @@ function todayLocal(): Date {
   return new Date(n.getFullYear(), n.getMonth(), n.getDate());
 }
 
+function isWeekend(d: Date): boolean {
+  const w = d.getDay();
+  return w === 0 || w === 6; // 0 = Pazar, 6 = Cumartesi
+}
+
 function buildDayRange(): Date[] {
   const today = todayLocal();
   const days: Date[] = [];
   let cur = new Date(START_DATE);
   while (cur <= today) {
-    days.push(new Date(cur));
+    if (!isWeekend(cur)) days.push(new Date(cur));
     cur = addDays(cur, 1);
   }
   return days;
