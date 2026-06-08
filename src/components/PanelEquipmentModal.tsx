@@ -441,25 +441,18 @@ export default function PanelEquipmentModal({
             </div>
           )}
 
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div
-              className="flex-1 overflow-y-auto"
-              style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
-            >
-              <WizardArea
-                step={step}
-                draft={draft}
-                upd={upd}
-                onNext={() => setStep((s) => s + 1)}
-                onBack={() => setStep((s) => Math.max(0, s - 1))}
-                onSave={saveFider}
-                onNewFider={resetWizard}
-                onClose={handleClose}
-                saving={saving}
-                preview={buildChain(draft)}
-              />
-            </div>
-          </div>
+          <WizardArea
+            step={step}
+            draft={draft}
+            upd={upd}
+            onNext={() => setStep((s) => s + 1)}
+            onBack={() => setStep((s) => Math.max(0, s - 1))}
+            onSave={saveFider}
+            onNewFider={resetWizard}
+            onClose={handleClose}
+            saving={saving}
+            preview={buildChain(draft)}
+          />
         </div>
       </div>
     </div>
@@ -485,13 +478,26 @@ type WP = {
 
 function WizardArea(props: WP) {
   const { step, onBack, onClose } = props;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Her adım değişiminde scroll pozisyonunu sıfırla —
+  // bunu yapmadan hit-test kayar ve yanlış elemanlara tıklanır.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+  }, [step]);
+
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col overflow-hidden">
       {step < 7 && (
         <div className="shrink-0 border-b border-zinc-200 bg-white px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={step === 0 ? onClose : onBack}
-              className="flex items-center gap-1 text-sm font-semibold text-zinc-500 active:text-zinc-800">
+            <button
+              type="button"
+              onClick={step === 0 ? onClose : onBack}
+              className="flex items-center gap-1 text-sm font-semibold text-zinc-500 active:text-zinc-800"
+            >
               <ChevronLeft /> {step === 0 ? "Kapat" : "Geri"}
             </button>
             <span className="text-xs font-semibold text-zinc-400">
@@ -499,12 +505,20 @@ function WizardArea(props: WP) {
             </span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
-            <div className="h-full rounded-full bg-zinc-900 transition-all duration-300"
-              style={{ width: `${((step + 1) / 7) * 100}%` }} />
+            <div
+              className="h-full rounded-full bg-zinc-900 transition-all duration-300"
+              style={{ width: `${((step + 1) / 7) * 100}%` }}
+            />
           </div>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto px-5 py-6">
+
+      {/* Tek ve tek scroll container — ref ile sıfırlama yapılır */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto overscroll-contain px-5 py-6"
+        style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+      >
         <div className="mx-auto max-w-sm">
           {step === 0 && <S0 {...props} />}
           {step === 1 && <S1 {...props} />}
