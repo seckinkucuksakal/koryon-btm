@@ -13,6 +13,8 @@ import {
   PhotoIcon,
   StatChip,
 } from "../components/StatChip";
+import PDFUploader from "../components/PDFUploader";
+import DocumentList from "../components/DocumentList";
 import { supabase, PANEL_TYPE_LABELS } from "../lib/supabase";
 import type { Database } from "../lib/database.types";
 
@@ -21,6 +23,7 @@ type PanelStat = Database["public"]["Views"]["panel_stats"]["Row"];
 type Photo = Database["public"]["Tables"]["photos"]["Row"];
 type Drawing = Database["public"]["Tables"]["drawings"]["Row"];
 type Note = Database["public"]["Tables"]["notes"]["Row"];
+type PdfDoc = Database["public"]["Tables"]["documents"]["Row"];
 type RoomWithUnit = Room & { units: { name: string } | null };
 
 export default function RoomDetailPage() {
@@ -32,6 +35,7 @@ export default function RoomDetailPage() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [documents, setDocuments] = useState<PdfDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [viewer, setViewer] = useState<{
@@ -42,7 +46,7 @@ export default function RoomDetailPage() {
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [r, p, ph, dr, no] = await Promise.all([
+    const [r, p, ph, dr, no, docs] = await Promise.all([
       supabase
         .from("rooms")
         .select("*, units(name)")
@@ -72,6 +76,12 @@ export default function RoomDetailPage() {
         .eq("room_id", id)
         .eq("visible", true)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("documents")
+        .select("*")
+        .eq("room_id", id)
+        .eq("visible", true)
+        .order("created_at", { ascending: false }),
     ]);
 
     if (!r.data) {
@@ -84,6 +94,7 @@ export default function RoomDetailPage() {
     setPhotos(ph.data ?? []);
     setDrawings(dr.data ?? []);
     setNotes(no.data ?? []);
+    setDocuments(docs.data ?? []);
     setLoading(false);
   }, [id]);
 
@@ -376,6 +387,11 @@ export default function RoomDetailPage() {
               ))}
             </div>
           )}
+        </Section>
+
+        <Section title="Belgeler (PDF)" count={documents.length > 0 ? documents.length : undefined}>
+          <PDFUploader ownerColumn="room_id" ownerId={room.id} onUploaded={load} />
+          <DocumentList documents={documents} onChange={load} />
         </Section>
 
         <NotesSection roomId={room.id} notes={notes} onChange={load} />

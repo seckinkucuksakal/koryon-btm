@@ -264,6 +264,45 @@ export type Database = {
           },
         ]
       }
+      documents: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          file_size: number | null
+          id: string
+          panel_id: string | null
+          room_id: string | null
+          storage_path: string
+          title: string | null
+          user_id: string | null
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          file_size?: number | null
+          id?: string
+          panel_id?: string | null
+          room_id?: string | null
+          storage_path: string
+          title?: string | null
+          user_id?: string | null
+          visible?: boolean
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          file_size?: number | null
+          id?: string
+          panel_id?: string | null
+          room_id?: string | null
+          storage_path?: string
+          title?: string | null
+          user_id?: string | null
+          visible?: boolean
+        }
+        Relationships: []
+      }
       photos: {
         Row: {
           created_at: string

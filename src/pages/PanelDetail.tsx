@@ -8,6 +8,8 @@ import PhotoUploader from "../components/PhotoUploader";
 import StorageImage from "../components/StorageImage";
 import Lightbox, { type LightboxItem } from "../components/Lightbox";
 import PanelEquipmentModal from "../components/PanelEquipmentModal";
+import PDFUploader from "../components/PDFUploader";
+import DocumentList from "../components/DocumentList";
 import { PANEL_TYPE_LABELS, supabase } from "../lib/supabase";
 import type { Database } from "../lib/database.types";
 
@@ -15,6 +17,7 @@ type Panel = Database["public"]["Tables"]["panels"]["Row"];
 type Equipment = Database["public"]["Tables"]["equipment"]["Row"];
 type Photo = Database["public"]["Tables"]["photos"]["Row"];
 type Drawing = Database["public"]["Tables"]["drawings"]["Row"];
+type PdfDoc = Database["public"]["Tables"]["documents"]["Row"];
 
 export default function PanelDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +27,7 @@ export default function PanelDetailPage() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [documents, setDocuments] = useState<PdfDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [viewer, setViewer] = useState<{
@@ -35,7 +39,7 @@ export default function PanelDetailPage() {
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [p, e, ph, dr] = await Promise.all([
+    const [p, e, ph, dr, docs] = await Promise.all([
       supabase
         .from("panels")
         .select("*")
@@ -60,6 +64,12 @@ export default function PanelDetailPage() {
         .eq("panel_id", id)
         .eq("visible", true)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("documents")
+        .select("*")
+        .eq("panel_id", id)
+        .eq("visible", true)
+        .order("created_at", { ascending: false }),
     ]);
 
     if (!p.data) {
@@ -72,6 +82,7 @@ export default function PanelDetailPage() {
     setEquipment(e.data ?? []);
     setPhotos(ph.data ?? []);
     setDrawings(dr.data ?? []);
+    setDocuments(docs.data ?? []);
     setLoading(false);
   }, [id]);
 
@@ -359,6 +370,20 @@ export default function PanelDetailPage() {
               ))}
             </div>
           )}
+        </section>
+
+        {/* ── PDF / Belgeler ── */}
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-zinc-900">
+            Belgeler (PDF)
+            {documents.length > 0 && (
+              <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                {documents.length}
+              </span>
+            )}
+          </h2>
+          <PDFUploader ownerColumn="panel_id" ownerId={panel.id} onUploaded={load} />
+          <DocumentList documents={documents} onChange={load} />
         </section>
       </div>
 
