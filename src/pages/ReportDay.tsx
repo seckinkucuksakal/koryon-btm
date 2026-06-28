@@ -1,6 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
+import {
+  START_DATE,
+  adjacentReportDay,
+  buildReportDays,
+  daysBetween,
+  getExtraReportDays,
+  isAllowedReportDay,
+  isWeekend,
+  prevWorkdayStr,
+  toDateStr,
+  todayLocal,
+} from "../lib/reportDates";
 import { supabase } from "../lib/supabase";
 // exportReport is lazy-loaded to keep the initial bundle light
 
@@ -8,7 +20,6 @@ import { supabase } from "../lib/supabase";
 export type TaskItem = { description: string; area: string };
 
 /* ─────────────────── constants ─────────────────── */
-const START_DATE = new Date(2026, 5, 4); // 4 Haziran 2026, local timezone
 const TR_MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
@@ -21,43 +32,14 @@ const WEATHER_OPTIONS = [
 ];
 
 function emptyTask(): TaskItem { return { description: "", area: "" }; }
-// Local-timezone-safe date → "YYYY-MM-DD"
-function toDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function daysBetween(a: Date, b: Date): number {
-  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
-}
 
 function formatDateLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return `${d.getDate()} ${TR_MONTHS[d.getMonth()]} ${d.getFullYear()} ${TR_WEEKDAYS[d.getDay()]}`;
 }
 
-function isWeekend(d: Date): boolean {
-  const w = d.getDay();
-  return w === 0 || w === 6;
-}
-
-/** Önceki iş gününü döndürür (Cumartesi/Pazar atlanır). */
-function prevDateStr(dateStr: string): string | null {
-  const d = new Date(dateStr + "T00:00:00");
-  const prev = new Date(d);
-  const startStr = toDateStr(START_DATE);
-  do {
-    prev.setDate(prev.getDate() - 1);
-    if (toDateStr(prev) < startStr) return null;
-  } while (isWeekend(prev));
-  return toDateStr(prev);
-}
-
 function todayStr(): string {
-  const n = new Date();
-  return toDateStr(new Date(n.getFullYear(), n.getMonth(), n.getDate()));
+  return toDateStr(todayLocal());
 }
 
 /* ─────────────────── task list editor ─────────────────── */
@@ -187,26 +169,18 @@ export default function ReportDayPage() {
 
   const dateStr = dateParam ?? todayStr();
   const isToday = dateStr === todayStr();
-  const isWeekendDay = isWeekend(new Date(dateStr + "T00:00:00"));
-
-  // Cumartesi/Pazar i\u00e7in rapor giri\u015fi yok \u2014 listeye geri d\u00f6n
-  useEffect(() => {
-    if (isWeekendDay) {
-      navigate("/reports", { replace: true });
-    }
-  }, [isWeekendDay, navigate]);
-
-  if (isWeekendDay) {
-    return null;
-  }
+  const isWeekendDay = isWeekend(new Date(`${dateStr}T00:00:00`));
+  const extraDays = useMemo(() => getExtraReportDays(), [dateStr]);
 
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [existingId, setExistingId] = useState<string | null>(null);
+  const [allReportDays, setAllReportDays] = useState<Date[]>([]);
 
   const [reportNo, setReportNo] = useState<string>("");
   const [weather, setWeather] = useState("");
@@ -218,17 +192,28 @@ export default function ReportDayPage() {
   const [tomorrowTasks, setTomorrowTasks] = useState<TaskItem[]>([emptyTask()]);
   const [importantNotes, setImportantNotes] = useState("");
 
-  const prevDate = prevDateStr(dateStr);
-  const dayOffset = daysBetween(START_DATE, new Date(dateStr + "T00:00:00"));
+  const prevDate = prevWorkdayStr(dateStr);
+  const dayOffset = daysBetween(START_DATE, new Date(`${dateStr}T00:00:00`));
   const autoReportNo = dayOffset + 1;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setSaved(false);
+    setAccessDenied(false);
 
     async function load() {
-      // Load this day's report
+      const { data: allReports } = await supabase
+        .from("daily_reports")
+        .select("report_date")
+        .eq("visible", true);
+
+      if (cancelled) return;
+
+      const savedDates = (allReports ?? []).map((r) => r.report_date);
+      const reportDays = buildReportDays(extraDays, savedDates);
+      setAllReportDays(reportDays);
+
       const { data: thisDay } = await supabase
         .from("daily_reports")
         .select("*")
@@ -237,6 +222,14 @@ export default function ReportDayPage() {
         .maybeSingle();
 
       if (cancelled) return;
+
+      const allowed = isAllowedReportDay(dateStr, extraDays, !!thisDay);
+      if (!allowed) {
+        setAccessDenied(true);
+        setLoading(false);
+        navigate("/reports", { replace: true });
+        return;
+      }
 
       if (thisDay) {
         setExistingId(thisDay.id);
@@ -283,7 +276,7 @@ export default function ReportDayPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [dateStr]);
+  }, [dateStr, extraDays, navigate]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -342,15 +335,17 @@ export default function ReportDayPage() {
   const dateLabel = formatDateLabel(dateStr);
   const prevLabel = prevDate ? formatDateLabel(prevDate) : null;
 
-  const navDate = (delta: number) => {
-    const d = new Date(dateStr + "T00:00:00");
-    d.setDate(d.getDate() + delta);
-    const next = toDateStr(d);
-    if (next < toDateStr(START_DATE)) return;
-    const t = todayStr();
-    if (next > t) return;
-    navigate(`/reports/${next}`);
+  const navDate = (delta: -1 | 1) => {
+    const next = adjacentReportDay(dateStr, delta, allReportDays);
+    if (next) navigate(`/reports/${next}`);
   };
+
+  const prevNav = adjacentReportDay(dateStr, -1, allReportDays);
+  const nextNav = adjacentReportDay(dateStr, 1, allReportDays);
+
+  if (accessDenied) {
+    return null;
+  }
 
   if (loading) {
     return (
@@ -376,6 +371,11 @@ export default function ReportDayPage() {
                 Bugün
               </span>
             )}
+            {isWeekendDay && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                Mesai
+              </span>
+            )}
             {saved && (
               <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                 Kaydedildi
@@ -391,7 +391,7 @@ export default function ReportDayPage() {
         <div className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-2.5">
           <button
             onClick={() => navDate(-1)}
-            disabled={dateStr <= toDateStr(START_DATE)}
+            disabled={!prevNav}
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-200 disabled:opacity-30 transition"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -402,7 +402,7 @@ export default function ReportDayPage() {
           <span className="text-xs text-zinc-500 font-medium">{dateLabel}</span>
           <button
             onClick={() => navDate(1)}
-            disabled={dateStr >= todayStr()}
+            disabled={!nextNav}
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-200 disabled:opacity-30 transition"
           >
             Sonraki gün

@@ -13,6 +13,9 @@ import NewDrawingPage from "./pages/NewDrawing";
 import TrashPage from "./pages/Trash";
 import ReportsPage from "./pages/Reports";
 import ReportDayPage from "./pages/ReportDay";
+import PanelLabelCheckPage from "./pages/PanelLabelCheck";
+import ExpenseReceiptsPage from "./pages/ExpenseReceipts";
+import ExpenseReceiptFolderPage from "./pages/ExpenseReceiptFolder";
 
 export default function App() {
   return (
@@ -38,6 +41,14 @@ export default function App() {
             <Route
               path="/panels/:id/drawings/new"
               element={<NewDrawingPage target="panel" />}
+            />
+
+            <Route path="/panel-label-check" element={<PanelLabelCheckPage />} />
+
+            <Route path="/expense-receipts" element={<ExpenseReceiptsPage />} />
+            <Route
+              path="/expense-receipts/:folderId"
+              element={<ExpenseReceiptFolderPage />}
             />
 
             <Route path="/trash" element={<TrashPage />} />

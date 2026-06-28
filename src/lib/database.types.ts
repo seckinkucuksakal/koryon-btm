@@ -108,6 +108,77 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_folders: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          user_id: string
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          user_id?: string
+          visible?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          user_id?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
+      expense_receipts: {
+        Row: {
+          amount: number
+          created_at: string
+          folder_id: string
+          id: string
+          mime_type: string
+          receipt_date: string
+          storage_path: string
+          title: string
+          user_id: string
+          visible: boolean
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          folder_id: string
+          id?: string
+          mime_type?: string
+          receipt_date: string
+          storage_path: string
+          title: string
+          user_id?: string
+          visible?: boolean
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          folder_id?: string
+          id?: string
+          mime_type?: string
+          receipt_date?: string
+          storage_path?: string
+          title?: string
+          user_id?: string
+          visible?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_receipts_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "expense_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment: {
         Row: {
           created_at: string
