@@ -374,6 +374,130 @@ export type Database = {
         }
         Relationships: []
       }
+      panel_label_regions: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          user_id?: string
+          visible?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
+      panel_label_panels: {
+        Row: {
+          created_at: string
+          depth_cm: number | null
+          height_cm: number | null
+          id: string
+          name: string
+          notes: string | null
+          region_id: string
+          sort_order: number
+          user_id: string
+          visible: boolean
+          width_cm: number | null
+        }
+        Insert: {
+          created_at?: string
+          depth_cm?: number | null
+          height_cm?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          region_id: string
+          sort_order?: number
+          user_id?: string
+          visible?: boolean
+          width_cm?: number | null
+        }
+        Update: {
+          created_at?: string
+          depth_cm?: number | null
+          height_cm?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          region_id?: string
+          sort_order?: number
+          user_id?: string
+          visible?: boolean
+          width_cm?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_label_panels_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "panel_label_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      panel_label_images: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          mime_type: string
+          panel_id: string
+          sort_order: number
+          storage_path: string
+          title: string
+          user_id: string
+          visible: boolean
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          mime_type?: string
+          panel_id: string
+          sort_order?: number
+          storage_path: string
+          title?: string
+          user_id?: string
+          visible?: boolean
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          mime_type?: string
+          panel_id?: string
+          sort_order?: number
+          storage_path?: string
+          title?: string
+          user_id?: string
+          visible?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_label_images_panel_id_fkey"
+            columns: ["panel_id"]
+            isOneToOne: false
+            referencedRelation: "panel_label_panels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       photos: {
         Row: {
           created_at: string

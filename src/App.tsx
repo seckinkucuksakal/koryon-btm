@@ -14,6 +14,8 @@ import TrashPage from "./pages/Trash";
 import ReportsPage from "./pages/Reports";
 import ReportDayPage from "./pages/ReportDay";
 import PanelLabelCheckPage from "./pages/PanelLabelCheck";
+import PanelLabelCheckRegionPage from "./pages/PanelLabelCheckRegion";
+import PanelLabelCheckPanelPage from "./pages/PanelLabelCheckPanel";
 import ExpenseReceiptsPage from "./pages/ExpenseReceipts";
 import ExpenseReceiptFolderPage from "./pages/ExpenseReceiptFolder";
 
@@ -44,6 +46,14 @@ export default function App() {
             />
 
             <Route path="/panel-label-check" element={<PanelLabelCheckPage />} />
+            <Route
+              path="/panel-label-check/:regionId"
+              element={<PanelLabelCheckRegionPage />}
+            />
+            <Route
+              path="/panel-label-check/:regionId/:panelId"
+              element={<PanelLabelCheckPanelPage />}
+            />
 
             <Route path="/expense-receipts" element={<ExpenseReceiptsPage />} />
             <Route

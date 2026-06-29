@@ -102,7 +102,7 @@ export default function HomePage() {
           variant="secondary"
           icon={<PanelCheckIcon />}
           label="Pano ve Etiket Kontrol"
-          hint="Pano ve etiket uyumluluğunu kontrol et"
+          hint="Bölge gruplarına göre pano listesi, ekleme ve düzenleme"
         />
 
         <BigLink

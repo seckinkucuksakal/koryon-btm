@@ -5,11 +5,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import EditableTitle from "./EditableTitle";
 
 export type LocalPhotoItem = {
   url: string;
   filename?: string;
   label?: string;
+  /** Verilirse lightbox başlığından düzenlenebilir. */
+  onSaveLabel?: (next: string) => Promise<void> | void;
 };
 
 type Props = {
@@ -343,9 +346,22 @@ export default function LocalPhotoLightbox({
     >
       <header className="flex items-center gap-2 px-3 py-2 sm:px-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold">
-            {photo.label ?? `Fotoğraf ${index + 1}`}
-          </p>
+          {photo.onSaveLabel ? (
+            <EditableTitle
+              value={photo.label ?? ""}
+              onSave={photo.onSaveLabel}
+              ariaLabel="Görsel adını düzenle"
+              placeholder="Görsel adı"
+              allowEmpty
+              className="block w-full truncate rounded-md text-left text-base font-semibold text-white transition active:bg-white/10"
+              inputClassName="w-full rounded-lg border border-white/30 bg-white/10 px-2 py-1 text-base font-semibold text-white outline-none focus:border-white/60 placeholder:text-white/50"
+              emptyClassName="italic text-white/50"
+            />
+          ) : (
+            <p className="truncate text-base font-semibold">
+              {photo.label ?? `Fotoğraf ${index + 1}`}
+            </p>
+          )}
           {total > 1 && (
             <p className="text-xs text-zinc-400">
               {index + 1} / {total}
