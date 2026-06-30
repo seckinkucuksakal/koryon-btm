@@ -11,9 +11,21 @@ import {
   formatPanelDimensions,
   getRegion,
   listPanelsWithSummary,
+  normalizePanelWorkflowStatus,
+  panelWorkflowRowClass,
   updateRegionName,
   type PanelLabelPanelSummary,
+  type PanelLabelWorkflowStatus,
 } from "../lib/panelLabelCatalog";
+
+type StatusFilter = "all" | PanelLabelWorkflowStatus;
+
+const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
+  all: "Tümü",
+  neutral: "Nötr",
+  in_progress: "İşlemde Olanlar",
+  completed: "Tamamlananlar",
+};
 
 export default function PanelLabelCheckRegionPage() {
   const { regionId } = useParams<{ regionId: string }>();
@@ -27,6 +39,7 @@ export default function PanelLabelCheckRegionPage() {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const reload = useCallback(async () => {
     if (!regionId) return;
@@ -90,10 +103,14 @@ export default function PanelLabelCheckRegionPage() {
     }
   };
 
-  const filteredPanels = panels.filter((panel) =>
-    filterPanelByQuery(panel, searchQuery),
-  );
+  const filteredPanels = panels.filter((panel) => {
+    if (!filterPanelByQuery(panel, searchQuery)) return false;
+    const status = normalizePanelWorkflowStatus(panel.workflowStatus);
+    if (statusFilter === "all") return true;
+    return status === statusFilter;
+  });
   const searching = searchQuery.trim().length > 0;
+  const filtering = statusFilter !== "all";
 
   if (notFound) {
     return (
@@ -125,11 +142,31 @@ export default function PanelLabelCheckRegionPage() {
 
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
         {!loading && panels.length > 0 && (
-          <PanelLabelSearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Bu bölgede pano ara…"
-          />
+          <div className="space-y-3">
+            <PanelLabelSearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Bu bölgede pano ara…"
+            />
+            <div className="flex gap-2 overflow-x-auto rounded-2xl bg-zinc-100 p-1">
+              {(Object.keys(STATUS_FILTER_LABELS) as StatusFilter[]).map(
+                (key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setStatusFilter(key)}
+                    className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                      statusFilter === key
+                        ? "bg-white text-zinc-900 shadow-sm"
+                        : "text-zinc-500 active:bg-zinc-200"
+                    }`}
+                  >
+                    {STATUS_FILTER_LABELS[key]}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
         )}
 
         <section className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
@@ -162,11 +199,11 @@ export default function PanelLabelCheckRegionPage() {
         ) : filteredPanels.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center">
             <p className="font-medium text-zinc-700">
-              {searching ? "Sonuç bulunamadı" : "Bu bölgede pano yok"}
+              {searching || filtering ? "Sonuç bulunamadı" : "Bu bölgede pano yok"}
             </p>
             <p className="mt-1 text-sm text-zinc-500">
-              {searching
-                ? "Farklı bir arama deneyin."
+              {searching || filtering
+                ? "Farklı bir arama veya filtre deneyin."
                 : "Yukarıdan pano ekleyin."}
             </p>
           </div>
@@ -175,14 +212,14 @@ export default function PanelLabelCheckRegionPage() {
             {filteredPanels.map((panel) => (
               <li
                 key={panel.id}
-                className="rounded-2xl border-2 border-zinc-200 bg-white"
+                className={`rounded-2xl border-2 ${panelWorkflowRowClass(panel.workflowStatus)}`}
               >
                 <div className="flex items-start">
                   <Link
                     to={`/panel-label-check/${regionId}/${panel.id}`}
-                    className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 active:bg-zinc-50 sm:px-4"
+                    className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 active:bg-black/5 sm:px-4"
                   >
-                    <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-500">
+                    <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-zinc-500">
                       <PanelIcon />
                     </span>
                     <div className="min-w-0 flex-1">

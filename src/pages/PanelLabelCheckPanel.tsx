@@ -3,14 +3,17 @@ import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import EditableTitle from "../components/EditableTitle";
 import PanelLabelImageSection from "../components/PanelLabelImageSection";
+import PanelWorkflowStatusButtons from "../components/PanelWorkflowStatusButtons";
 import {
   getPanel,
   getRegion,
   listPanelImages,
   updatePanelDetails,
   updatePanelName,
+  updatePanelWorkflowStatus,
   type PanelLabelImage,
   type PanelLabelPanelDetails,
+  type PanelLabelWorkflowStatus,
 } from "../lib/panelLabelCatalog";
 
 type DimensionDraft = {
@@ -100,6 +103,8 @@ export default function PanelLabelCheckPanelPage() {
   const [panoIci, setPanoIci] = useState<PanelLabelImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [workflowStatus, setWorkflowStatus] =
+    useState<PanelLabelWorkflowStatus | null>(null);
 
   const reloadImages = useCallback(async () => {
     if (!panelId) return;
@@ -124,6 +129,7 @@ export default function PanelLabelCheckPanelPage() {
         return;
       }
       setPanelName(panel.name);
+      setWorkflowStatus(panel.workflowStatus);
       setNotes(panel.notes);
       setNotesDraft(panel.notes);
       setLocationDirection(panel.locationDirection);
@@ -228,6 +234,25 @@ export default function PanelLabelCheckPanelPage() {
           <p className="text-center text-sm text-zinc-500">Yükleniyor…</p>
         ) : (
           <>
+            <section className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
+              <h2 className="text-base font-semibold text-zinc-900">
+                Pano Durumu
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Nötr, işlemde veya tamamlandı — bölge rengi buna göre değişir.
+              </p>
+              <div className="mt-4">
+                <PanelWorkflowStatusButtons
+                  value={workflowStatus}
+                  onChange={async (status) => {
+                    if (!panelId) return;
+                    await updatePanelWorkflowStatus(panelId, status);
+                    setWorkflowStatus(status);
+                  }}
+                />
+              </div>
+            </section>
+
             <section className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
               <h2 className="text-base font-semibold text-zinc-900">
                 Pano Boyutu

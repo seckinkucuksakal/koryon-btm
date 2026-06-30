@@ -1,6 +1,22 @@
 import { supabase } from "./supabase";
 import { deleteFromStorage, uploadToStorage } from "./storage";
 
+export type PanelLabelWorkflowStatus = "neutral" | "in_progress" | "completed";
+
+export type RegionWorkflowHighlight = "in_progress" | "completed" | null;
+
+export const PANEL_WORKFLOW_LABELS: Record<PanelLabelWorkflowStatus, string> = {
+  neutral: "Nötr",
+  in_progress: "İşleme Alındı",
+  completed: "Tamamlandı",
+};
+
+export function normalizePanelWorkflowStatus(
+  status: PanelLabelWorkflowStatus | null,
+): PanelLabelWorkflowStatus {
+  return status ?? "neutral";
+}
+
 export type PanelLabelRegion = {
   id: string;
   name: string;
@@ -18,6 +34,7 @@ export type PanelLabelPanel = {
   widthCm: number | null;
   heightCm: number | null;
   depthCm: number | null;
+  workflowStatus: PanelLabelWorkflowStatus | null;
   createdAt: string;
 };
 
@@ -56,6 +73,7 @@ type DbPanel = {
   width_cm: number | null;
   height_cm: number | null;
   depth_cm: number | null;
+  workflow_status: PanelLabelWorkflowStatus | null;
   created_at: string;
 };
 
@@ -95,8 +113,87 @@ function mapPanel(row: DbPanel): PanelLabelPanel {
     widthCm: row.width_cm,
     heightCm: row.height_cm,
     depthCm: row.depth_cm,
+    workflowStatus: row.workflow_status ?? null,
     createdAt: row.created_at,
   };
+}
+
+export function regionWorkflowRowClass(
+  highlight: RegionWorkflowHighlight,
+): string {
+  if (highlight === "in_progress") return "bg-amber-50 border-amber-200";
+  if (highlight === "completed") return "bg-emerald-50 border-emerald-200";
+  return "bg-white border-zinc-200";
+}
+
+export function panelWorkflowRowClass(
+  status: PanelLabelWorkflowStatus | null,
+): string {
+  const normalized = normalizePanelWorkflowStatus(status);
+  if (normalized === "in_progress") return "border-amber-200 bg-amber-50/40";
+  if (normalized === "completed") return "border-emerald-200 bg-emerald-50/40";
+  return "border-zinc-200 bg-white";
+}
+
+export async function mapRegionWorkflowHighlights(
+  regionIds: string[],
+): Promise<Map<string, RegionWorkflowHighlight>> {
+  const result = new Map<string, RegionWorkflowHighlight>();
+  for (const id of regionIds) result.set(id, null);
+  if (regionIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from("panel_label_panels")
+    .select("region_id, workflow_status")
+    .in("region_id", regionIds)
+    .eq("visible", true);
+
+  if (error) throw new Error(error.message);
+
+  type Row = {
+    region_id: string;
+    workflow_status: PanelLabelWorkflowStatus | null;
+  };
+
+  const stats = new Map<
+    string,
+    { total: number; inProgress: number; completed: number }
+  >();
+
+  for (const row of (data ?? []) as Row[]) {
+    const bucket = stats.get(row.region_id) ?? {
+      total: 0,
+      inProgress: 0,
+      completed: 0,
+    };
+    bucket.total += 1;
+    if (row.workflow_status === "in_progress") bucket.inProgress += 1;
+    if (row.workflow_status === "completed") bucket.completed += 1;
+    stats.set(row.region_id, bucket);
+  }
+
+  for (const [regionId, bucket] of stats) {
+    if (bucket.total === 0) continue;
+    if (bucket.inProgress > 0) {
+      result.set(regionId, "in_progress");
+    } else if (bucket.completed === bucket.total) {
+      result.set(regionId, "completed");
+    }
+  }
+
+  return result;
+}
+
+export async function updatePanelWorkflowStatus(
+  id: string,
+  status: PanelLabelWorkflowStatus,
+): Promise<void> {
+  const { error } = await supabase
+    .from("panel_label_panels")
+    .update({ workflow_status: status })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
 }
 
 export function isPanelAssetPdf(mimeType: string): boolean {
@@ -373,7 +470,7 @@ export async function listDeletedRegions(): Promise<PanelLabelTrashRegion[]> {
 }
 
 const PANEL_SELECT =
-  "id, region_id, name, sort_order, notes, location_direction, width_cm, height_cm, depth_cm, created_at";
+  "id, region_id, name, sort_order, notes, location_direction, width_cm, height_cm, depth_cm, workflow_status, created_at";
 
 export async function listPanels(regionId: string): Promise<PanelLabelPanel[]> {
   const { data, error } = await supabase

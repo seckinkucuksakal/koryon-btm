@@ -10,14 +10,20 @@ import {
   deleteRegion,
   ensureRegionsAlphabeticalSort,
   listRegions,
+  mapRegionWorkflowHighlights,
   matchesPanelLabelQuery,
+  regionWorkflowRowClass,
   reorderRegions,
   searchPanelLabels,
   type PanelLabelSearchHit,
   type PanelLabelRegion,
+  type RegionWorkflowHighlight,
 } from "../lib/panelLabelCatalog";
 
-type RegionSummary = PanelLabelRegion & { panelCount: number };
+type RegionSummary = PanelLabelRegion & {
+  panelCount: number;
+  workflowHighlight: RegionWorkflowHighlight;
+};
 
 export default function PanelLabelCheckPage() {
   const confirm = useConfirm();
@@ -42,10 +48,12 @@ export default function PanelLabelCheckPage() {
     setLoading(true);
     try {
       const list = await listRegions();
+      const highlights = await mapRegionWorkflowHighlights(list.map((r) => r.id));
       const enriched = await Promise.all(
         list.map(async (region) => ({
           ...region,
           panelCount: await countPanels(region.id),
+          workflowHighlight: highlights.get(region.id) ?? null,
         })),
       );
       setRegions(enriched);
@@ -396,6 +404,7 @@ export default function PanelLabelCheckPage() {
                 const reorderIndex = regions.findIndex((r) => r.id === region.id);
                 const isDragging = !searching && dragFromIndex === reorderIndex;
                 const isDropTarget = !searching && dragOverIndex === reorderIndex;
+                const baseRowClass = regionWorkflowRowClass(region.workflowHighlight);
 
                 return (
                 <div
@@ -404,10 +413,10 @@ export default function PanelLabelCheckPage() {
                     if (el && !searching) rowRefs.current.set(region.id, el);
                     else rowRefs.current.delete(region.id);
                   }}
-                  className={`flex items-stretch gap-0 rounded-2xl border-2 bg-white transition ${
+                  className={`flex items-stretch gap-0 rounded-2xl border-2 transition ${baseRowClass} ${
                     isDragging ? "opacity-50" : ""
                   } ${
-                    isDropTarget ? "border-zinc-900" : "border-zinc-200"
+                    isDropTarget ? "!border-zinc-900" : ""
                   }`}
                 >
                   {!searching ? (

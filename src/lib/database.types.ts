@@ -419,6 +419,7 @@ export type Database = {
           user_id: string
           visible: boolean
           width_cm: number | null
+          workflow_status: string | null
         }
         Insert: {
           created_at?: string
@@ -434,6 +435,7 @@ export type Database = {
           user_id?: string
           visible?: boolean
           width_cm?: number | null
+          workflow_status?: string | null
         }
         Update: {
           created_at?: string
@@ -449,6 +451,7 @@ export type Database = {
           user_id?: string
           visible?: boolean
           width_cm?: number | null
+          workflow_status?: string | null
         }
         Relationships: [
           {
