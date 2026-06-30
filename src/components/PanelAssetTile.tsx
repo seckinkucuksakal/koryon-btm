@@ -6,7 +6,6 @@ type Props = {
   mimeType: string;
   title?: string | null;
   onOpen: () => void;
-  onDelete: () => void;
 };
 
 export default function PanelAssetTile({
@@ -14,7 +13,6 @@ export default function PanelAssetTile({
   mimeType,
   title,
   onOpen,
-  onDelete,
 }: Props) {
   const isPdf = isPanelAssetPdf(mimeType);
 
@@ -41,18 +39,6 @@ export default function PanelAssetTile({
             />
           )}
         </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          aria-label={isPdf ? "PDF sil" : "Görseli sil"}
-          title={isPdf ? "PDF sil" : "Görseli sil"}
-          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm transition active:bg-rose-600 md:hover:bg-black/80"
-        >
-          <CloseIcon />
-        </button>
         {title && title.trim().length > 0 && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 truncate rounded-b-xl bg-gradient-to-t from-black/70 via-black/40 to-transparent px-2 py-1.5 text-xs font-medium text-white">
             {title}
@@ -65,24 +51,6 @@ export default function PanelAssetTile({
         )}
       </div>
     </div>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
   );
 }
 

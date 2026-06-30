@@ -106,7 +106,7 @@ export default function EditableTitle({
       aria-label={ariaLabel}
       className={
         className ??
-        "block w-full truncate rounded-md text-left text-lg font-semibold text-zinc-900 transition active:bg-zinc-100"
+        "block w-full break-words whitespace-normal rounded-md text-left text-lg font-semibold leading-snug text-zinc-900 transition active:bg-zinc-100"
       }
       title="Düzenlemek için dokun"
     >

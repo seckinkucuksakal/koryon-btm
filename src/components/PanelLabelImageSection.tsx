@@ -3,10 +3,8 @@ import EditableTitle from "./EditableTitle";
 import LocalPhotoLightbox from "./LocalPhotoLightbox";
 import PanelAssetTile from "./PanelAssetTile";
 import PDFViewer, { type PDFDoc } from "./PDFViewer";
-import { useConfirm } from "./ConfirmDialog";
 import {
   addPanelImage,
-  deletePanelImage,
   isAcceptablePanelAssetFile,
   isPanelAssetPdf,
   updatePanelImageTitle,
@@ -32,7 +30,6 @@ export default function PanelLabelImageSection({
   images,
   onChange,
 }: Props) {
-  const confirm = useConfirm();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
@@ -65,29 +62,6 @@ export default function PanelLabelImageSection({
       if (cameraRef.current) cameraRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
       if (pdfRef.current) pdfRef.current.value = "";
-    }
-  };
-
-  const handleDelete = async (image: PanelLabelImage) => {
-    const isPdf = isPanelAssetPdf(image.mimeType);
-    const ok = await confirm({
-      title: isPdf ? "PDF sil" : "Görseli sil",
-      message: image.title
-        ? `"${image.title}" silinsin mi?`
-        : isPdf
-          ? "Bu PDF silinsin mi?"
-          : "Bu görsel silinsin mi?",
-      confirmText: "Sil",
-      destructive: true,
-    });
-    if (!ok) return;
-    try {
-      await deletePanelImage(image.id);
-      if (lightboxIndex !== null) setLightboxIndex(null);
-      if (pdfViewer?.id === image.id) setPdfViewer(null);
-      onChange();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Silinemedi.");
     }
   };
 
@@ -193,7 +167,6 @@ export default function PanelLabelImageSection({
                 mimeType={image.mimeType}
                 title={image.title || undefined}
                 onOpen={() => openAsset(image)}
-                onDelete={() => void handleDelete(image)}
               />
               <EditableTitle
                 value={image.title}
@@ -204,7 +177,7 @@ export default function PanelLabelImageSection({
                 ariaLabel="Dosya adını düzenle"
                 placeholder="Dosya adı"
                 allowEmpty
-                className="mt-1 block w-full truncate rounded-md px-1 py-0.5 text-left text-xs font-medium text-zinc-600 active:bg-zinc-100"
+                className="mt-1 block w-full break-words rounded-md px-1 py-0.5 text-left text-xs font-medium leading-relaxed text-zinc-600 active:bg-zinc-100"
                 inputClassName="w-full rounded-lg border border-zinc-300 px-2 py-1 text-xs outline-none focus:border-zinc-500"
                 emptyClassName="italic text-zinc-400"
               />

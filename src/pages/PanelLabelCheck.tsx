@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { BigButton } from "../components/BigButton";
+import PanelLabelSearchInput from "../components/PanelLabelSearchInput";
 import { useConfirm } from "../components/ConfirmDialog";
 import {
   countPanels,
@@ -9,7 +10,10 @@ import {
   deleteRegion,
   ensureRegionsAlphabeticalSort,
   listRegions,
+  matchesPanelLabelQuery,
   reorderRegions,
+  searchPanelLabels,
+  type PanelLabelSearchHit,
   type PanelLabelRegion,
 } from "../lib/panelLabelCatalog";
 
@@ -26,6 +30,9 @@ export default function PanelLabelCheckPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [panelHits, setPanelHits] = useState<PanelLabelSearchHit[]>([]);
+  const [searchingPanels, setSearchingPanels] = useState(false);
 
   const reload = async () => {
     setLoading(true);
@@ -55,6 +62,32 @@ export default function PanelLabelCheckPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setPanelHits([]);
+      setSearchingPanels(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchingPanels(true);
+    void searchPanelLabels(q)
+      .then((hits) => {
+        if (!cancelled) setPanelHits(hits);
+      })
+      .catch(() => {
+        if (!cancelled) setPanelHits([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSearchingPanels(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchQuery]);
+
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) {
@@ -78,8 +111,8 @@ export default function PanelLabelCheckPage() {
   const handleDelete = async (region: RegionSummary) => {
     const ok = await confirm({
       title: "Bölgeyi sil",
-      message: `"${region.name}" bölgesi ve içindeki ${region.panelCount} pano silinecek. Emin misiniz?`,
-      confirmText: "Sil",
+      message: `"${region.name}" bölgesi ve içindeki ${region.panelCount} pano geri dönüşüm kutusuna taşınsın mı? İçerikler saklanır, istediğinizde geri yükleyebilirsiniz.`,
+      confirmText: "Çöpe taşı",
       destructive: true,
     });
     if (!ok) return;
@@ -113,6 +146,12 @@ export default function PanelLabelCheckPage() {
   };
 
   const totalPanels = regions.reduce((s, r) => s + r.panelCount, 0);
+  const searching = searchQuery.trim().length > 0;
+  const filteredRegions = searching
+    ? regions.filter((region) =>
+        matchesPanelLabelQuery([region.name], searchQuery),
+      )
+    : regions;
 
   return (
     <>
@@ -126,6 +165,22 @@ export default function PanelLabelCheckPage() {
         back
       />
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
+        {!loading && regions.length > 0 && (
+          <div className="space-y-3">
+            <PanelLabelSearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Bölge veya pano ara…"
+            />
+            <Link
+              to="/trash"
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700 active:bg-zinc-100"
+            >
+              Geri Dönüşüm Kutusu
+            </Link>
+          </div>
+        )}
+
         <BigButton
           variant="primary"
           icon={<PlusIcon />}
@@ -192,16 +247,77 @@ export default function PanelLabelCheckPage() {
           </div>
         ) : (
           <>
+            {searching && (
+              <section className="space-y-2">
+                <h2 className="text-sm font-semibold text-zinc-700">Panolar</h2>
+                {searchingPanels ? (
+                  <p className="text-sm text-zinc-500">Aranıyor…</p>
+                ) : panelHits.length === 0 ? (
+                  <p className="rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
+                    Eşleşen pano yok.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {panelHits.map((hit) => (
+                      <li key={hit.panelId}>
+                        <Link
+                          to={`/panel-label-check/${hit.regionId}/${hit.panelId}`}
+                          className="flex items-start gap-3 rounded-2xl border-2 border-zinc-200 bg-white px-4 py-3 active:bg-zinc-50"
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words font-semibold leading-snug text-zinc-900">
+                              {hit.panelName}
+                            </span>
+                            <span className="mt-0.5 block break-words text-sm leading-relaxed text-zinc-500">
+                              {hit.regionName}
+                            </span>
+                          </span>
+                          <svg
+                            className="shrink-0 text-zinc-400"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M9 6l6 6-6 6" />
+                          </svg>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {!searching && (
             <p className="rounded-xl bg-zinc-50 px-4 py-2 text-xs text-zinc-600">
               Bölgeler harf sırasına göre listelenir. Tutup sürükleyerek istediğin
               sıraya alabilirsin.
               {savingOrder ? " Kaydediliyor…" : ""}
             </p>
+            )}
+
+            {searching && filteredRegions.length === 0 && !searchingPanels && panelHits.length === 0 ? (
+              <div className="rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center">
+                <p className="font-medium text-zinc-700">Sonuç bulunamadı</p>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Farklı bir arama deneyin.
+                </p>
+              </div>
+            ) : (
+            <>
+            {searching && filteredRegions.length > 0 && (
+              <h2 className="text-sm font-semibold text-zinc-700">Bölgeler</h2>
+            )}
             <div className="space-y-3">
-              {regions.map((region, index) => (
+              {(searching ? filteredRegions : regions).map((region, index) => (
                 <div
                   key={region.id}
-                  draggable={!savingOrder}
+                  draggable={!savingOrder && !searching}
                   onDragStart={() => setDragFromIndex(index)}
                   onDragEnd={() => {
                     setDragFromIndex(null);
@@ -233,21 +349,21 @@ export default function PanelLabelCheckPage() {
                   <button
                     type="button"
                     aria-label="Sürükleyerek sırala"
-                    className="flex w-11 shrink-0 cursor-grab items-center justify-center border-r border-zinc-200 text-zinc-400 active:cursor-grabbing active:bg-zinc-50"
+                    className="flex w-11 shrink-0 cursor-grab items-center justify-center self-stretch border-r border-zinc-200 text-zinc-400 active:cursor-grabbing active:bg-zinc-50"
                     onPointerDown={(e) => e.stopPropagation()}
                   >
                     <GripIcon />
                   </button>
                   <Link
                     to={`/panel-label-check/${region.id}`}
-                    className="flex min-w-0 flex-1 items-center gap-4 px-4 py-5 active:bg-zinc-50"
+                    className="flex min-w-0 flex-1 items-center gap-4 px-4 py-4 active:bg-zinc-50 sm:py-5"
                     draggable={false}
                   >
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-600">
                       <RegionIcon />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-base font-semibold text-zinc-900">
+                      <span className="block break-words text-base font-semibold leading-snug text-zinc-900">
                         {region.name}
                       </span>
                       <span className="mt-0.5 block text-sm text-zinc-500">
@@ -272,13 +388,16 @@ export default function PanelLabelCheckPage() {
                     type="button"
                     onClick={() => void handleDelete(region)}
                     aria-label="Bölgeyi sil"
-                    className="flex w-14 shrink-0 items-center justify-center border-l border-zinc-200 text-zinc-400 active:bg-red-50 active:text-red-600"
+                    className="flex w-14 shrink-0 items-center justify-center self-stretch border-l border-zinc-200 text-zinc-400 active:bg-red-50 active:text-red-600"
                   >
                     <TrashIcon />
                   </button>
                 </div>
               ))}
             </div>
+            </>
+            )}
+
           </>
         )}
       </div>

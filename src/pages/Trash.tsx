@@ -3,13 +3,26 @@ import { useConfirm } from "../components/ConfirmDialog";
 import PageHeader from "../components/PageHeader";
 import { PANEL_TYPE_LABELS, supabase } from "../lib/supabase";
 import { deleteFromStorage } from "../lib/storage";
+import {
+  listDeletedPanels as listDeletedLabelPanels,
+  listDeletedRegions as listDeletedLabelRegions,
+  restorePanel as restoreLabelPanel,
+  restoreRegion as restoreLabelRegion,
+  type PanelLabelTrashPanel,
+  type PanelLabelTrashRegion,
+} from "../lib/panelLabelCatalog";
 import type { Database } from "../lib/database.types";
 
 type Unit = Database["public"]["Tables"]["units"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
 type Panel = Database["public"]["Tables"]["panels"]["Row"];
 
-type Tab = "units" | "rooms" | "panels";
+type Tab =
+  | "units"
+  | "rooms"
+  | "panels"
+  | "labelRegions"
+  | "labelPanels";
 
 type RoomWithUnit = Room & { unit: { id: string; name: string } | null };
 type PanelWithRoom = Panel & {
@@ -25,13 +38,15 @@ export default function TrashPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [rooms, setRooms] = useState<RoomWithUnit[]>([]);
   const [panels, setPanels] = useState<PanelWithRoom[]>([]);
+  const [labelRegions, setLabelRegions] = useState<PanelLabelTrashRegion[]>([]);
+  const [labelPanels, setLabelPanels] = useState<PanelLabelTrashPanel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [u, r, p] = await Promise.all([
+    const [u, r, p, lr, lp] = await Promise.all([
       supabase
         .from("units")
         .select("*")
@@ -47,6 +62,8 @@ export default function TrashPage() {
         .select("*, room:rooms(id, room_name, unit:units(id, name))")
         .eq("visible", false)
         .order("deleted_at", { ascending: false }),
+      listDeletedLabelRegions().catch(() => [] as PanelLabelTrashRegion[]),
+      listDeletedLabelPanels().catch(() => [] as PanelLabelTrashPanel[]),
     ]);
     if (u.error || r.error || p.error) {
       setError(u.error?.message ?? r.error?.message ?? p.error?.message ?? "Yükleme hatası");
@@ -54,6 +71,8 @@ export default function TrashPage() {
     setUnits((u.data ?? []) as Unit[]);
     setRooms((r.data ?? []) as RoomWithUnit[]);
     setPanels((p.data ?? []) as PanelWithRoom[]);
+    setLabelRegions(lr);
+    setLabelPanels(lp);
     setLoading(false);
   }, []);
 
@@ -62,8 +81,20 @@ export default function TrashPage() {
   }, [load]);
 
   const counts = useMemo(
-    () => ({ units: units.length, rooms: rooms.length, panels: panels.length }),
-    [units.length, rooms.length, panels.length],
+    () => ({
+      units: units.length,
+      rooms: rooms.length,
+      panels: panels.length,
+      labelRegions: labelRegions.length,
+      labelPanels: labelPanels.length,
+    }),
+    [
+      units.length,
+      rooms.length,
+      panels.length,
+      labelRegions.length,
+      labelPanels.length,
+    ],
   );
 
   return (
@@ -71,6 +102,18 @@ export default function TrashPage() {
       <PageHeader title="Geri Dönüşüm Kutusu" subtitle="Silinen kayıtlar" back />
       <div className="mx-auto max-w-4xl px-4 py-5">
         <div className="mb-4 flex gap-2 overflow-x-auto rounded-2xl bg-zinc-100 p-1">
+          <TabButton
+            active={tab === "labelRegions"}
+            onClick={() => setTab("labelRegions")}
+            label="Etiket Bölgeleri"
+            count={counts.labelRegions}
+          />
+          <TabButton
+            active={tab === "labelPanels"}
+            onClick={() => setTab("labelPanels")}
+            label="Etiket Panoları"
+            count={counts.labelPanels}
+          />
           <TabButton
             active={tab === "units"}
             onClick={() => setTab("units")}
@@ -102,6 +145,10 @@ export default function TrashPage() {
             <div className="h-20 animate-pulse rounded-2xl bg-zinc-100" />
             <div className="h-20 animate-pulse rounded-2xl bg-zinc-100" />
           </div>
+        ) : tab === "labelRegions" ? (
+          <LabelRegionsList items={labelRegions} onChange={load} />
+        ) : tab === "labelPanels" ? (
+          <LabelPanelsList items={labelPanels} onChange={load} />
         ) : tab === "units" ? (
           <UnitsList items={units} onChange={load} />
         ) : tab === "rooms" ? (
@@ -162,13 +209,15 @@ function TrashRow({
   onRestore,
   onPurge,
   busy,
+  allowPurge = true,
 }: {
   title: string;
   subtitle?: string;
   meta?: string;
   onRestore: () => void;
-  onPurge: () => void;
+  onPurge?: () => void;
   busy?: boolean;
+  allowPurge?: boolean;
 }) {
   return (
     <li className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
@@ -193,14 +242,16 @@ function TrashRow({
           >
             Geri Yükle
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onPurge}
-            className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white active:bg-rose-700 disabled:opacity-50"
-          >
-            Kalıcı Sil
-          </button>
+          {allowPurge && onPurge && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onPurge}
+              className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white active:bg-rose-700 disabled:opacity-50"
+            >
+              Kalıcı Sil
+            </button>
+          )}
         </div>
       </div>
     </li>
@@ -383,6 +434,110 @@ function PanelsList({
 function formatDeletedAt(value: string | null): string | undefined {
   if (!value) return undefined;
   return `Silindi: ${new Date(value).toLocaleString("tr-TR")}`;
+}
+
+function LabelRegionsList({
+  items,
+  onChange,
+}: {
+  items: PanelLabelTrashRegion[];
+  onChange: () => void;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function restore(region: PanelLabelTrashRegion) {
+    setBusyId(region.id);
+    setError(null);
+    try {
+      await restoreLabelRegion(region.id);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Geri yüklenemedi.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (items.length === 0) {
+    return (
+      <EmptyTrash text="Geri dönüşüm kutusunda etiket bölgesi yok." />
+    );
+  }
+
+  return (
+    <>
+      {error && (
+        <div className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+      <ul className="space-y-3">
+        {items.map((region) => (
+          <TrashRow
+            key={region.id}
+            title={region.name}
+            subtitle={`${region.panelCount} pano · içerikler korunur`}
+            meta={formatDeletedAt(region.deletedAt)}
+            busy={busyId === region.id}
+            allowPurge={false}
+            onRestore={() => void restore(region)}
+          />
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function LabelPanelsList({
+  items,
+  onChange,
+}: {
+  items: PanelLabelTrashPanel[];
+  onChange: () => void;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function restore(panel: PanelLabelTrashPanel) {
+    setBusyId(panel.id);
+    setError(null);
+    try {
+      await restoreLabelPanel(panel.id);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Geri yüklenemedi.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (items.length === 0) {
+    return <EmptyTrash text="Geri dönüşüm kutusunda etiket panosu yok." />;
+  }
+
+  return (
+    <>
+      {error && (
+        <div className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+      <ul className="space-y-3">
+        {items.map((panel) => (
+          <TrashRow
+            key={panel.id}
+            title={panel.name}
+            subtitle={panel.regionName}
+            meta={`Tek Hat ${panel.tekHatCount} · Pano İçi ${panel.panoIciCount} · ${formatDeletedAt(panel.deletedAt) ?? ""}`}
+            busy={busyId === panel.id}
+            allowPurge={false}
+            onRestore={() => void restore(panel)}
+          />
+        ))}
+      </ul>
+    </>
+  );
 }
 
 async function purgeStorageForUnit(unitId: string) {

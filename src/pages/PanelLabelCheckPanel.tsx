@@ -54,10 +54,12 @@ function draftToSaved(draft: DimensionDraft): SavedDimensions {
 function detailsEqual(
   notesDraft: string,
   notes: string,
+  locationDraft: string,
+  location: string,
   draft: DimensionDraft,
   saved: SavedDimensions,
 ): boolean {
-  if (notesDraft !== notes) return false;
+  if (notesDraft !== notes || locationDraft !== location) return false;
   try {
     const next = draftToSaved(draft);
     return (
@@ -80,6 +82,8 @@ export default function PanelLabelCheckPanelPage() {
   const [regionName, setRegionName] = useState("");
   const [notes, setNotes] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
+  const [locationDirection, setLocationDirection] = useState("");
+  const [locationDraft, setLocationDraft] = useState("");
   const [dimensions, setDimensions] = useState<SavedDimensions>({
     widthCm: null,
     heightCm: null,
@@ -122,6 +126,8 @@ export default function PanelLabelCheckPanelPage() {
       setPanelName(panel.name);
       setNotes(panel.notes);
       setNotesDraft(panel.notes);
+      setLocationDirection(panel.locationDirection);
+      setLocationDraft(panel.locationDirection);
       const savedDims = {
         widthCm: panel.widthCm,
         heightCm: panel.heightCm,
@@ -163,10 +169,12 @@ export default function PanelLabelCheckPanelPage() {
 
       const details: PanelLabelPanelDetails = {
         notes: notesDraft,
+        locationDirection: locationDraft,
         ...parsed,
       };
       await updatePanelDetails(panelId, details);
       setNotes(notesDraft);
+      setLocationDirection(locationDraft);
       setDimensions(parsed);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Kayıt başarısız.");
@@ -178,6 +186,8 @@ export default function PanelLabelCheckPanelPage() {
   const isDirty = !detailsEqual(
     notesDraft,
     notes,
+    locationDraft,
+    locationDirection,
     dimensionsDraft,
     dimensions,
   );
@@ -276,6 +286,26 @@ export default function PanelLabelCheckPanelPage() {
               images={panoIci}
               onChange={() => void reloadImages()}
             />
+
+            <section className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
+              <h2 className="text-base font-semibold text-zinc-900">
+                Lokasyon tarifi
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Panoya nasıl gidileceğini tarif edin.
+              </p>
+              <textarea
+                value={locationDraft}
+                onChange={(e) => {
+                  setLocationDraft(e.target.value);
+                  setSaveError(null);
+                }}
+                placeholder="Örn: Ana girişten sola, 2. kat koridor sonu…"
+                rows={4}
+                disabled={saving}
+                className="mt-3 w-full resize-y rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-zinc-500 disabled:bg-zinc-50"
+              />
+            </section>
 
             <section className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
               <h2 className="text-base font-semibold text-zinc-900">

@@ -377,6 +377,7 @@ export type Database = {
       panel_label_regions: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           name: string
           sort_order: number
@@ -385,6 +386,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name: string
           sort_order?: number
@@ -393,6 +395,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name?: string
           sort_order?: number
@@ -404,11 +407,13 @@ export type Database = {
       panel_label_panels: {
         Row: {
           created_at: string
+          deleted_at: string | null
           depth_cm: number | null
           height_cm: number | null
           id: string
           name: string
           notes: string | null
+          location_direction: string | null
           region_id: string
           sort_order: number
           user_id: string
@@ -417,9 +422,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           depth_cm?: number | null
           height_cm?: number | null
           id?: string
+          location_direction?: string | null
           name: string
           notes?: string | null
           region_id: string
@@ -430,9 +437,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           depth_cm?: number | null
           height_cm?: number | null
           id?: string
+          location_direction?: string | null
           name?: string
           notes?: string | null
           region_id?: string
@@ -455,6 +464,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          deleted_at: string | null
           id: string
           mime_type: string
           panel_id: string
@@ -467,6 +477,7 @@ export type Database = {
         Insert: {
           category: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           mime_type?: string
           panel_id: string
@@ -479,6 +490,7 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           mime_type?: string
           panel_id?: string

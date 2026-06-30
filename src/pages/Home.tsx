@@ -52,9 +52,23 @@ export default function HomePage() {
         .from("panels")
         .select("id", { count: "exact", head: true })
         .eq("visible", false),
-    ]).then(([u, r, p]) => {
+      supabase
+        .from("panel_label_regions")
+        .select("id", { count: "exact", head: true })
+        .eq("visible", false),
+      supabase
+        .from("panel_label_panels")
+        .select("id", { count: "exact", head: true })
+        .eq("visible", false),
+    ]).then(([u, r, p, lr, lp]) => {
       if (cancelled) return;
-      setTrashCount((u.count ?? 0) + (r.count ?? 0) + (p.count ?? 0));
+      setTrashCount(
+        (u.count ?? 0) +
+          (r.count ?? 0) +
+          (p.count ?? 0) +
+          (lr.count ?? 0) +
+          (lp.count ?? 0),
+      );
     });
 
     return () => {

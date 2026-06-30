@@ -14,6 +14,7 @@ export type PanelLabelPanel = {
   name: string;
   sortOrder: number;
   notes: string;
+  locationDirection: string;
   widthCm: number | null;
   heightCm: number | null;
   depthCm: number | null;
@@ -23,10 +24,6 @@ export type PanelLabelPanel = {
 export type PanelLabelPanelSummary = PanelLabelPanel & {
   tekHatCount: number;
   panoIciCount: number;
-  tekHatCoverPath: string | null;
-  tekHatCoverMime: string | null;
-  panoIciCoverPath: string | null;
-  panoIciCoverMime: string | null;
 };
 
 export type PanelLabelImageCategory = "tek_hat" | "pano_ici";
@@ -55,6 +52,7 @@ type DbPanel = {
   name: string;
   sort_order: number;
   notes: string | null;
+  location_direction: string | null;
   width_cm: number | null;
   height_cm: number | null;
   depth_cm: number | null;
@@ -93,6 +91,7 @@ function mapPanel(row: DbPanel): PanelLabelPanel {
     name: row.name,
     sortOrder: row.sort_order,
     notes: row.notes ?? "",
+    locationDirection: row.location_direction ?? "",
     widthCm: row.width_cm,
     heightCm: row.height_cm,
     depthCm: row.depth_cm,
@@ -114,6 +113,82 @@ export function panelAssetMimeType(file: File): string {
   if (file.type) return file.type;
   if (/\.pdf$/i.test(file.name)) return "application/pdf";
   return "image/jpeg";
+}
+
+export function normalizePanelLabelSearch(text: string): string {
+  return text.toLocaleLowerCase("tr").normalize("NFKC");
+}
+
+export function matchesPanelLabelQuery(
+  fields: string[],
+  query: string,
+): boolean {
+  const q = normalizePanelLabelSearch(query.trim());
+  if (!q) return true;
+  return fields.some((field) =>
+    normalizePanelLabelSearch(field).includes(q),
+  );
+}
+
+export function filterPanelByQuery(
+  panel: Pick<PanelLabelPanel, "name" | "notes" | "locationDirection">,
+  query: string,
+): boolean {
+  return matchesPanelLabelQuery(
+    [panel.name, panel.notes, panel.locationDirection],
+    query,
+  );
+}
+
+export type PanelLabelSearchHit = {
+  regionId: string;
+  regionName: string;
+  panelId: string;
+  panelName: string;
+};
+
+export async function searchPanelLabels(
+  query: string,
+  regionId?: string,
+): Promise<PanelLabelSearchHit[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  const pattern = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
+
+  let request = supabase
+    .from("panel_label_panels")
+    .select(
+      "id, name, region_id, panel_label_regions!inner(name, visible)",
+    )
+    .eq("visible", true)
+    .eq("panel_label_regions.visible", true)
+    .or(
+      `name.ilike.${pattern},notes.ilike.${pattern},location_direction.ilike.${pattern}`,
+    )
+    .order("name", { ascending: true })
+    .limit(40);
+
+  if (regionId) {
+    request = request.eq("region_id", regionId);
+  }
+
+  const { data, error } = await request;
+  if (error) throw new Error(error.message);
+
+  type Row = {
+    id: string;
+    name: string;
+    region_id: string;
+    panel_label_regions: { name: string; visible: boolean } | null;
+  };
+
+  return ((data ?? []) as Row[]).map((row) => ({
+    regionId: row.region_id,
+    regionName: row.panel_label_regions?.name ?? "",
+    panelId: row.id,
+    panelName: row.name,
+  }));
 }
 
 export function formatPanelDimensions(
@@ -231,16 +306,74 @@ export async function updateRegionName(
 }
 
 export async function deleteRegion(id: string): Promise<void> {
+  const now = new Date().toISOString();
+
+  const { error: panelsErr } = await supabase
+    .from("panel_label_panels")
+    .update({ visible: false, deleted_at: now })
+    .eq("region_id", id)
+    .eq("visible", true);
+
+  if (panelsErr) throw new Error(panelsErr.message);
+
   const { error } = await supabase
     .from("panel_label_regions")
-    .delete()
+    .update({ visible: false, deleted_at: now })
     .eq("id", id);
 
   if (error) throw new Error(error.message);
 }
 
+export async function restoreRegion(id: string): Promise<void> {
+  const { error: panelsErr } = await supabase
+    .from("panel_label_panels")
+    .update({ visible: true, deleted_at: null })
+    .eq("region_id", id);
+
+  if (panelsErr) throw new Error(panelsErr.message);
+
+  const { error } = await supabase
+    .from("panel_label_regions")
+    .update({ visible: true, deleted_at: null })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+}
+
+export type PanelLabelTrashRegion = PanelLabelRegion & {
+  deletedAt: string;
+  panelCount: number;
+};
+
+export async function listDeletedRegions(): Promise<PanelLabelTrashRegion[]> {
+  const { data, error } = await supabase
+    .from("panel_label_regions")
+    .select("id, name, sort_order, created_at, deleted_at")
+    .eq("visible", false)
+    .order("deleted_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as (DbRegion & { deleted_at: string })[];
+
+  return Promise.all(
+    rows.map(async (row) => {
+      const { count } = await supabase
+        .from("panel_label_panels")
+        .select("id", { count: "exact", head: true })
+        .eq("region_id", row.id);
+
+      return {
+        ...mapRegion(row),
+        deletedAt: row.deleted_at ?? row.created_at,
+        panelCount: count ?? 0,
+      };
+    }),
+  );
+}
+
 const PANEL_SELECT =
-  "id, region_id, name, sort_order, notes, width_cm, height_cm, depth_cm, created_at";
+  "id, region_id, name, sort_order, notes, location_direction, width_cm, height_cm, depth_cm, created_at";
 
 export async function listPanels(regionId: string): Promise<PanelLabelPanel[]> {
   const { data, error } = await supabase
@@ -264,19 +397,15 @@ export async function listPanelsWithSummary(
   const panelIds = panels.map((p) => p.id);
   const { data, error } = await supabase
     .from("panel_label_images")
-    .select("panel_id, category, storage_path, mime_type, sort_order, created_at")
+    .select("panel_id, category")
     .in("panel_id", panelIds)
-    .eq("visible", true)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
+    .eq("visible", true);
 
   if (error) throw new Error(error.message);
 
   type Row = {
     panel_id: string;
     category: PanelLabelImageCategory;
-    storage_path: string;
-    mime_type: string;
   };
 
   const byPanel = new Map<
@@ -300,16 +429,10 @@ export async function listPanelsWithSummary(
 
   return panels.map((panel) => {
     const assets = byPanel.get(panel.id) ?? { tekHat: [], panoIci: [] };
-    const tekCover = assets.tekHat[0] ?? null;
-    const panoCover = assets.panoIci[0] ?? null;
     return {
       ...panel,
       tekHatCount: assets.tekHat.length,
       panoIciCount: assets.panoIci.length,
-      tekHatCoverPath: tekCover?.storage_path ?? null,
-      tekHatCoverMime: tekCover?.mime_type ?? null,
-      panoIciCoverPath: panoCover?.storage_path ?? null,
-      panoIciCoverMime: panoCover?.mime_type ?? null,
     };
   });
 }
@@ -381,6 +504,7 @@ export async function updatePanelNotes(id: string, notes: string): Promise<void>
 
 export type PanelLabelPanelDetails = {
   notes: string;
+  locationDirection: string;
   widthCm: number | null;
   heightCm: number | null;
   depthCm: number | null;
@@ -394,6 +518,7 @@ export async function updatePanelDetails(
     .from("panel_label_panels")
     .update({
       notes: details.notes,
+      location_direction: details.locationDirection,
       width_cm: details.widthCm,
       height_cm: details.heightCm,
       depth_cm: details.depthCm,
@@ -482,40 +607,101 @@ export async function updatePanelImageTitle(
   if (error) throw new Error(error.message);
 }
 
-export async function deletePanelImage(id: string): Promise<void> {
-  const { data, error: fetchErr } = await supabase
-    .from("panel_label_images")
-    .select("storage_path")
+export async function deletePanelImage(_id: string): Promise<void> {
+  throw new Error("Pano etiket görselleri silinemez.");
+}
+
+export async function deletePanel(id: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("panel_label_panels")
+    .update({ visible: false, deleted_at: now })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function restorePanel(id: string): Promise<void> {
+  const { data: panel, error: fetchErr } = await supabase
+    .from("panel_label_panels")
+    .select("region_id")
     .eq("id", id)
     .maybeSingle();
 
   if (fetchErr) throw new Error(fetchErr.message);
-  if (data?.storage_path) await deleteFromStorage(data.storage_path);
+  if (!panel) throw new Error("Pano bulunamadı.");
 
-  const { error } = await supabase.from("panel_label_images").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-}
+  const { data: region, error: regionErr } = await supabase
+    .from("panel_label_regions")
+    .select("visible")
+    .eq("id", panel.region_id)
+    .maybeSingle();
 
-async function deleteAllPanelImages(panelId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from("panel_label_images")
-    .select("storage_path")
-    .eq("panel_id", panelId);
+  if (regionErr) throw new Error(regionErr.message);
+  if (!region?.visible) {
+    throw new Error("Önce bağlı olduğu bölgeyi geri yükleyin.");
+  }
 
-  if (error) throw new Error(error.message);
-  await Promise.all(
-    (data ?? []).map((row) =>
-      row.storage_path ? deleteFromStorage(row.storage_path) : Promise.resolve(),
-    ),
-  );
-}
-
-export async function deletePanel(id: string): Promise<void> {
-  await deleteAllPanelImages(id);
   const { error } = await supabase
     .from("panel_label_panels")
-    .delete()
+    .update({ visible: true, deleted_at: null })
     .eq("id", id);
 
   if (error) throw new Error(error.message);
+}
+
+export type PanelLabelTrashPanel = PanelLabelPanel & {
+  deletedAt: string;
+  regionName: string;
+  tekHatCount: number;
+  panoIciCount: number;
+};
+
+export async function listDeletedPanels(): Promise<PanelLabelTrashPanel[]> {
+  const { data, error } = await supabase
+    .from("panel_label_panels")
+    .select(
+      `${PANEL_SELECT}, deleted_at, panel_label_regions!inner(name)`,
+    )
+    .eq("visible", false)
+    .order("deleted_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  type Row = DbPanel & {
+    deleted_at: string | null;
+    panel_label_regions: { name: string };
+  };
+
+  const rows = (data ?? []) as Row[];
+  if (rows.length === 0) return [];
+
+  const panelIds = rows.map((r) => r.id);
+  const { data: images, error: imgErr } = await supabase
+    .from("panel_label_images")
+    .select("panel_id, category")
+    .in("panel_id", panelIds)
+    .eq("visible", true);
+
+  if (imgErr) throw new Error(imgErr.message);
+
+  const counts = new Map<string, { tekHat: number; panoIci: number }>();
+  for (const id of panelIds) counts.set(id, { tekHat: 0, panoIci: 0 });
+  for (const img of images ?? []) {
+    const bucket = counts.get(img.panel_id);
+    if (!bucket) continue;
+    if (img.category === "tek_hat") bucket.tekHat += 1;
+    else bucket.panoIci += 1;
+  }
+
+  return rows.map((row) => {
+    const c = counts.get(row.id) ?? { tekHat: 0, panoIci: 0 };
+    return {
+      ...mapPanel(row),
+      deletedAt: row.deleted_at ?? row.created_at,
+      regionName: row.panel_label_regions.name,
+      tekHatCount: c.tekHat,
+      panoIciCount: c.panoIci,
+    };
+  });
 }

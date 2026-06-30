@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import EditableTitle from "../components/EditableTitle";
-import PanelCoverPreview from "../components/PanelCoverPreview";
 import { useConfirm } from "../components/ConfirmDialog";
+import PanelLabelSearchInput from "../components/PanelLabelSearchInput";
 import {
   createPanel,
   deletePanel,
+  filterPanelByQuery,
   formatPanelDimensions,
   getRegion,
   listPanelsWithSummary,
@@ -25,6 +26,7 @@ export default function PanelLabelCheckRegionPage() {
   const [newPanelName, setNewPanelName] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const reload = useCallback(async () => {
     if (!regionId) return;
@@ -75,8 +77,8 @@ export default function PanelLabelCheckRegionPage() {
   const handleDeletePanel = async (panel: PanelLabelPanelSummary) => {
     const ok = await confirm({
       title: "Panoyu sil",
-      message: `"${panel.name}" listeden silinsin mi?`,
-      confirmText: "Sil",
+      message: `"${panel.name}" geri dönüşüm kutusuna taşınsın mı? Tek hat, pano içi görselleri ve notlar saklanır; istediğinizde geri yükleyebilirsiniz.`,
+      confirmText: "Çöpe taşı",
       destructive: true,
     });
     if (!ok) return;
@@ -87,6 +89,11 @@ export default function PanelLabelCheckRegionPage() {
       setError(e instanceof Error ? e.message : "Silinemedi.");
     }
   };
+
+  const filteredPanels = panels.filter((panel) =>
+    filterPanelByQuery(panel, searchQuery),
+  );
+  const searching = searchQuery.trim().length > 0;
 
   if (notFound) {
     return (
@@ -117,6 +124,14 @@ export default function PanelLabelCheckRegionPage() {
       />
 
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
+        {!loading && panels.length > 0 && (
+          <PanelLabelSearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Bu bölgede pano ara…"
+          />
+        )}
+
         <section className="rounded-2xl border-2 border-zinc-200 bg-white p-4">
           <h2 className="text-base font-semibold text-zinc-900">Pano Ekle</h2>
           <div className="mt-3 flex gap-2">
@@ -144,73 +159,79 @@ export default function PanelLabelCheckRegionPage() {
 
         {loading ? (
           <p className="text-center text-sm text-zinc-500">Yükleniyor…</p>
-        ) : panels.length === 0 ? (
+        ) : filteredPanels.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center">
-            <p className="font-medium text-zinc-700">Bu bölgede pano yok</p>
+            <p className="font-medium text-zinc-700">
+              {searching ? "Sonuç bulunamadı" : "Bu bölgede pano yok"}
+            </p>
             <p className="mt-1 text-sm text-zinc-500">
-              Yukarıdan pano ekleyin.
+              {searching
+                ? "Farklı bir arama deneyin."
+                : "Yukarıdan pano ekleyin."}
             </p>
           </div>
         ) : (
           <ul className="space-y-3">
-            {panels.map((panel) => (
+            {filteredPanels.map((panel) => (
               <li
                 key={panel.id}
-                className="overflow-hidden rounded-2xl border-2 border-zinc-200 bg-white"
+                className="rounded-2xl border-2 border-zinc-200 bg-white"
               >
-                <div className="flex items-stretch gap-0">
+                <div className="flex items-start">
                   <Link
                     to={`/panel-label-check/${regionId}/${panel.id}`}
-                    className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 active:bg-zinc-50 sm:px-4"
+                    className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 active:bg-zinc-50 sm:px-4"
                   >
-                    <PanelCoverPreview
-                      tekHat={{
-                        label: "Tek Hat",
-                        path: panel.tekHatCoverPath,
-                        mimeType: panel.tekHatCoverMime,
-                        count: panel.tekHatCount,
-                      }}
-                      panoIci={{
-                        label: "Pano İçi",
-                        path: panel.panoIciCoverPath,
-                        mimeType: panel.panoIciCoverMime,
-                        count: panel.panoIciCount,
-                      }}
-                    />
+                    <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-500">
+                      <PanelIcon />
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold text-zinc-900">
+                      <p className="break-words text-base font-semibold leading-snug text-zinc-900">
                         {panel.name}
                       </p>
                       <PanelMeta panel={panel} />
                     </div>
-                    <svg
-                      className="hidden shrink-0 text-zinc-400 sm:block"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M9 6l6 6-6 6" />
-                    </svg>
                   </Link>
                   <button
                     type="button"
                     onClick={() => void handleDeletePanel(panel)}
-                    className="shrink-0 border-l border-zinc-200 px-4 py-3 text-sm font-medium text-red-600 active:bg-red-50"
+                    className="hidden shrink-0 self-stretch border-l border-zinc-200 px-4 py-3 text-sm font-medium text-red-600 active:bg-red-50 sm:flex sm:items-center"
                   >
                     Sil
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDeletePanel(panel)}
+                  className="w-full border-t border-zinc-200 px-4 py-2.5 text-sm font-medium text-red-600 active:bg-red-50 sm:hidden"
+                >
+                  Sil
+                </button>
               </li>
             ))}
           </ul>
         )}
       </div>
     </>
+  );
+}
+
+function PanelIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M9 21V9" />
+    </svg>
   );
 }
 
@@ -221,11 +242,13 @@ function PanelMeta({ panel }: { panel: PanelLabelPanelSummary }) {
     panel.depthCm,
   );
   const notePreview = panel.notes.trim();
+  const locationPreview = panel.locationDirection.trim();
   const hasContent =
     panel.tekHatCount > 0 ||
     panel.panoIciCount > 0 ||
     !!dimensions ||
-    notePreview.length > 0;
+    notePreview.length > 0 ||
+    locationPreview.length > 0;
 
   if (!hasContent) {
     return (
@@ -245,10 +268,18 @@ function PanelMeta({ panel }: { panel: PanelLabelPanelSummary }) {
         {panel.panoIciCount > 0 && (
           <MetaBadge>Pano İçi · {panel.panoIciCount}</MetaBadge>
         )}
+        {locationPreview.length > 0 && <MetaBadge>Lokasyon</MetaBadge>}
         {notePreview.length > 0 && <MetaBadge>Not</MetaBadge>}
       </div>
+      {locationPreview.length > 0 && (
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-500">
+          {locationPreview}
+        </p>
+      )}
       {notePreview.length > 0 && (
-        <p className="line-clamp-2 text-sm text-zinc-500">{notePreview}</p>
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-500">
+          {notePreview}
+        </p>
       )}
     </div>
   );
@@ -265,8 +296,8 @@ function MetaBadge({
     <span
       className={
         tone === "dark"
-          ? "inline-flex rounded-md bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white"
-          : "inline-flex rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600"
+          ? "inline max-w-full break-words rounded-md bg-zinc-900 px-2 py-0.5 text-xs font-medium leading-relaxed text-white"
+          : "inline max-w-full break-words rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium leading-relaxed text-zinc-600"
       }
     >
       {children}
