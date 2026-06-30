@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { BigButton } from "../components/BigButton";
@@ -30,6 +30,10 @@ export default function PanelLabelCheckPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const pointerDragActive = useRef(false);
+  const dragFromRef = useRef<number | null>(null);
+  const dragOverRef = useRef<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [panelHits, setPanelHits] = useState<PanelLabelSearchHit[]>([]);
   const [searchingPanels, setSearchingPanels] = useState(false);
@@ -143,6 +147,80 @@ export default function PanelLabelCheckPage() {
     } finally {
       setSavingOrder(false);
     }
+  };
+
+  const resolveDropIndex = (clientY: number): number | null => {
+    for (let i = 0; i < regions.length; i++) {
+      const el = rowRefs.current.get(regions[i].id);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) return i;
+    }
+    return null;
+  };
+
+  const endPointerDrag = (clientY: number) => {
+    if (!pointerDragActive.current || dragFromRef.current === null) return;
+
+    const from = dragFromRef.current;
+    const over = dragOverRef.current ?? resolveDropIndex(clientY);
+    pointerDragActive.current = false;
+    dragFromRef.current = null;
+    dragOverRef.current = null;
+    document.body.style.overflow = "";
+    setDragFromIndex(null);
+    setDragOverIndex(null);
+
+    if (over !== null && over !== from) {
+      void applyReorder(from, over);
+    }
+  };
+
+  const handleGripPointerDown = (
+    e: React.PointerEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    if (savingOrder || searching) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pointerDragActive.current = true;
+    dragFromRef.current = index;
+    dragOverRef.current = null;
+    document.body.style.overflow = "hidden";
+    setDragFromIndex(index);
+    setDragOverIndex(null);
+  };
+
+  const handleGripPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!pointerDragActive.current || dragFromRef.current === null) return;
+    e.preventDefault();
+    const over = resolveDropIndex(e.clientY);
+    if (over !== null && over !== dragFromRef.current) {
+      dragOverRef.current = over;
+      setDragOverIndex(over);
+    }
+  };
+
+  const handleGripPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!pointerDragActive.current) return;
+    e.preventDefault();
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture already released */
+    }
+    endPointerDrag(e.clientY);
+  };
+
+  const handleGripPointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!pointerDragActive.current) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture already released */
+    }
+    endPointerDrag(e.clientY);
   };
 
   const totalPanels = regions.reduce((s, r) => s + r.panelCount, 0);
@@ -295,8 +373,8 @@ export default function PanelLabelCheckPage() {
 
             {!searching && (
             <p className="rounded-xl bg-zinc-50 px-4 py-2 text-xs text-zinc-600">
-              Bölgeler harf sırasına göre listelenir. Tutup sürükleyerek istediğin
-              sıraya alabilirsin.
+              Bölgeler harf sırasına göre listelenir. Sol tutamaçtan basılı tutup
+              sürükleyerek sıralayın (telefon ve bilgisayarda).
               {savingOrder ? " Kaydediliyor…" : ""}
             </p>
             )}
@@ -314,46 +392,40 @@ export default function PanelLabelCheckPage() {
               <h2 className="text-sm font-semibold text-zinc-700">Bölgeler</h2>
             )}
             <div className="space-y-3">
-              {(searching ? filteredRegions : regions).map((region, index) => (
+              {(searching ? filteredRegions : regions).map((region) => {
+                const reorderIndex = regions.findIndex((r) => r.id === region.id);
+                const isDragging = !searching && dragFromIndex === reorderIndex;
+                const isDropTarget = !searching && dragOverIndex === reorderIndex;
+
+                return (
                 <div
                   key={region.id}
-                  draggable={!savingOrder && !searching}
-                  onDragStart={() => setDragFromIndex(index)}
-                  onDragEnd={() => {
-                    setDragFromIndex(null);
-                    setDragOverIndex(null);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (dragFromIndex === null || dragFromIndex === index) return;
-                    setDragOverIndex(index);
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverIndex === index) setDragOverIndex(null);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (dragFromIndex === null) return;
-                    void applyReorder(dragFromIndex, index);
-                    setDragFromIndex(null);
-                    setDragOverIndex(null);
+                  ref={(el) => {
+                    if (el && !searching) rowRefs.current.set(region.id, el);
+                    else rowRefs.current.delete(region.id);
                   }}
                   className={`flex items-stretch gap-0 rounded-2xl border-2 bg-white transition ${
-                    dragFromIndex === index ? "opacity-50" : ""
+                    isDragging ? "opacity-50" : ""
                   } ${
-                    dragOverIndex === index
-                      ? "border-zinc-900"
-                      : "border-zinc-200"
+                    isDropTarget ? "border-zinc-900" : "border-zinc-200"
                   }`}
                 >
+                  {!searching ? (
                   <button
                     type="button"
                     aria-label="Sürükleyerek sırala"
-                    className="flex w-11 shrink-0 cursor-grab items-center justify-center self-stretch border-r border-zinc-200 text-zinc-400 active:cursor-grabbing active:bg-zinc-50"
-                    onPointerDown={(e) => e.stopPropagation()}
+                    disabled={savingOrder}
+                    className="flex w-11 shrink-0 touch-none cursor-grab items-center justify-center self-stretch border-r border-zinc-200 text-zinc-400 active:cursor-grabbing active:bg-zinc-100 disabled:opacity-40"
+                    onPointerDown={(e) => handleGripPointerDown(e, reorderIndex)}
+                    onPointerMove={handleGripPointerMove}
+                    onPointerUp={handleGripPointerUp}
+                    onPointerCancel={handleGripPointerCancel}
                   >
                     <GripIcon />
                   </button>
+                  ) : (
+                    <span className="flex w-3 shrink-0" aria-hidden />
+                  )}
                   <Link
                     to={`/panel-label-check/${region.id}`}
                     className="flex min-w-0 flex-1 items-center gap-4 px-4 py-4 active:bg-zinc-50 sm:py-5"
@@ -393,7 +465,8 @@ export default function PanelLabelCheckPage() {
                     <TrashIcon />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
             </>
             )}
