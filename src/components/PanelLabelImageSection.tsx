@@ -4,7 +4,6 @@ import LocalPhotoLightbox from "./LocalPhotoLightbox";
 import PanelAssetTile from "./PanelAssetTile";
 import PDFViewer, { type PDFDoc } from "./PDFViewer";
 import { useConfirm } from "./ConfirmDialog";
-import MobileGalleryPicker from "./MobileGalleryPicker";
 import {
   addPanelImage,
   deletePanelImage,
@@ -16,8 +15,6 @@ import {
 } from "../lib/panelLabelCatalog";
 import { getPublicUrl } from "../lib/storage";
 import { downloadPanelImagesZip } from "../lib/panelLabelDownload";
-import { prefersMobileGalleryPicker } from "../lib/isMobileDevice";
-import { preparePanelAssetFile } from "../lib/preparePanelAsset";
 
 type Props = {
   panelId: string;
@@ -59,7 +56,6 @@ export default function PanelLabelImageSection({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [pdfViewer, setPdfViewer] = useState<PanelLabelImage | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
   const dragDepthRef = useRef(0);
 
   const imageItems = images.filter((img) => !isPanelAssetPdf(img.mimeType));
@@ -75,8 +71,7 @@ export default function PanelLabelImageSection({
     try {
       let done = 0;
       for (const file of picked) {
-        const prepared = await preparePanelAssetFile(file);
-        await addPanelImage(panelId, category, prepared);
+        await addPanelImage(panelId, category, file);
         done += 1;
         setUploadProgress({ done, total: picked.length });
       }
@@ -225,27 +220,6 @@ export default function PanelLabelImageSection({
     await uploadFiles(picked);
   };
 
-  function openGalleryPicker() {
-    if (dropDisabled) return;
-    if (prefersMobileGalleryPicker()) {
-      setGalleryPickerOpen(true);
-      return;
-    }
-    galleryRef.current?.click();
-  }
-
-  async function handleGalleryPickerConfirm(files: File[]) {
-    setGalleryPickerOpen(false);
-    const label = files.length === 1 ? "1 dosya" : `${files.length} dosya`;
-    const ok = await confirm({
-      title: "Dosyaları yükle",
-      message: `${label} yükleyeceksiniz, emin misiniz?`,
-      confirmText: "Yükle",
-    });
-    if (!ok) return;
-    await uploadFiles(files);
-  }
-
   const openAsset = (image: PanelLabelImage) => {
     if (isPanelAssetPdf(image.mimeType)) {
       setPdfViewer(image);
@@ -303,7 +277,7 @@ export default function PanelLabelImageSection({
         <button
           type="button"
           disabled={uploading || downloadingZip}
-          onClick={openGalleryPicker}
+          onClick={() => galleryRef.current?.click()}
           className="rounded-xl border-2 border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800 disabled:opacity-50"
         >
           Galeriden ekle
@@ -424,12 +398,6 @@ export default function PanelLabelImageSection({
       {uploadProgress && (
         <UploadProgressModal progress={uploadProgress} />
       )}
-
-      <MobileGalleryPicker
-        open={galleryPickerOpen}
-        onClose={() => setGalleryPickerOpen(false)}
-        onConfirm={(files) => void handleGalleryPickerConfirm(files)}
-      />
 
       {downloadProgress && (
         <DownloadProgressModal progress={downloadProgress} />
@@ -584,8 +552,7 @@ function UploadProgressModal({
         </div>
         <p className="mt-1 text-xs tabular-nums text-zinc-400">{pct}%</p>
         <p className="mt-4 text-sm leading-relaxed text-zinc-500">
-          Lütfen bekleyin. Fotoğraflar optimize edilip yükleniyor; bitene kadar
-          uygulamadan çıkmayın.
+          Lütfen bekleyin. Yükleme bitene kadar uygulamadan çıkmayın.
         </p>
       </div>
     </div>
