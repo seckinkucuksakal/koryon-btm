@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirm } from "./ConfirmDialog";
 import {
   normalizePanelWorkflowStatus,
   PANEL_WORKFLOW_LABELS,
@@ -15,6 +16,7 @@ const OPTIONS: PanelLabelWorkflowStatus[] = [
   "neutral",
   "in_progress",
   "completed",
+  "not_found",
 ];
 
 function statusStyles(
@@ -23,13 +25,18 @@ function statusStyles(
 ): string {
   if (status === "neutral") {
     return active
-      ? "border-zinc-400 bg-zinc-100 text-zinc-900"
+      ? "border-dashed border-zinc-300 bg-white text-zinc-500"
       : "border-zinc-200 bg-zinc-50 text-zinc-700 active:bg-zinc-100";
   }
   if (status === "in_progress") {
     return active
       ? "border-amber-400 bg-amber-100 text-amber-950"
       : "border-amber-200 bg-amber-50 text-amber-900 active:bg-amber-100";
+  }
+  if (status === "not_found") {
+    return active
+      ? "border-red-400 bg-red-100 text-red-950"
+      : "border-red-200 bg-red-50 text-red-900 active:bg-red-100";
   }
   return active
     ? "border-emerald-400 bg-emerald-100 text-emerald-950"
@@ -41,11 +48,33 @@ export default function PanelWorkflowStatusButtons({
   disabled,
   onChange,
 }: Props) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState<PanelLabelWorkflowStatus | null>(null);
   const current = normalizePanelWorkflowStatus(value);
 
   const handlePick = async (status: PanelLabelWorkflowStatus) => {
-    if (disabled || busy || current === status) return;
+    if (disabled || busy) return;
+
+    if (current === status) {
+      if (status === "neutral") return;
+
+      const ok = await confirm({
+        title: "Pano modunu sıfırla",
+        message: "Pano modunu sıfırlayacaksınız, emin misiniz?",
+        confirmText: "Sıfırla",
+        destructive: true,
+      });
+      if (!ok) return;
+
+      setBusy(status);
+      try {
+        await onChange("neutral");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
     setBusy(status);
     try {
       await onChange(status);

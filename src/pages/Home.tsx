@@ -104,19 +104,19 @@ export default function HomePage() {
         </div>
 
         <BigLink
-          to="/reports"
-          variant="secondary"
-          icon={<ReportIcon />}
-          label="Günlük Faaliyet Raporları"
-          hint="Günlük rapor gir, geçmiş raporları görüntüle"
-        />
-
-        <BigLink
           to="/panel-label-check"
           variant="secondary"
           icon={<PanelCheckIcon />}
           label="Pano ve Etiket Kontrol"
           hint="Bölge gruplarına göre pano listesi, ekleme ve düzenleme"
+        />
+
+        <BigLink
+          to="/reports"
+          variant="secondary"
+          icon={<ReportIcon />}
+          label="Günlük Faaliyet Raporları"
+          hint="Günlük rapor gir, geçmiş raporları görüntüle"
         />
 
         <BigLink

@@ -1,14 +1,19 @@
 import { supabase } from "./supabase";
 import { deleteFromStorage, uploadToStorage } from "./storage";
 
-export type PanelLabelWorkflowStatus = "neutral" | "in_progress" | "completed";
+export type PanelLabelWorkflowStatus =
+  | "neutral"
+  | "in_progress"
+  | "completed"
+  | "not_found";
 
 export type RegionWorkflowHighlight = "in_progress" | "completed" | null;
 
 export const PANEL_WORKFLOW_LABELS: Record<PanelLabelWorkflowStatus, string> = {
-  neutral: "Nötr",
+  neutral: "Beklemede",
   in_progress: "İşleme Alındı",
   completed: "Tamamlandı",
+  not_found: "Bulunamadı",
 };
 
 export function normalizePanelWorkflowStatus(
@@ -132,6 +137,7 @@ export function panelWorkflowRowClass(
   const normalized = normalizePanelWorkflowStatus(status);
   if (normalized === "in_progress") return "border-amber-200 bg-amber-50/40";
   if (normalized === "completed") return "border-emerald-200 bg-emerald-50/40";
+  if (normalized === "not_found") return "border-red-200 bg-red-50/40";
   return "border-zinc-200 bg-white";
 }
 
@@ -704,8 +710,13 @@ export async function updatePanelImageTitle(
   if (error) throw new Error(error.message);
 }
 
-export async function deletePanelImage(_id: string): Promise<void> {
-  throw new Error("Pano etiket görselleri silinemez.");
+export async function deletePanelImage(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("panel_label_images")
+    .update({ visible: false, deleted_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
 }
 
 export async function deletePanel(id: string): Promise<void> {

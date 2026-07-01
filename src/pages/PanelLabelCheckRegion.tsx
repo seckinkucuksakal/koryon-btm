@@ -22,9 +22,10 @@ type StatusFilter = "all" | PanelLabelWorkflowStatus;
 
 const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   all: "Tümü",
-  neutral: "Nötr",
+  neutral: "Beklemede",
   in_progress: "İşlemde Olanlar",
   completed: "Tamamlananlar",
+  not_found: "Bulunamayanlar",
 };
 
 export default function PanelLabelCheckRegionPage() {
@@ -40,6 +41,8 @@ export default function PanelLabelCheckRegionPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [scrollCanGoUp, setScrollCanGoUp] = useState(false);
+  const [scrollCanGoDown, setScrollCanGoDown] = useState(false);
 
   const reload = useCallback(async () => {
     if (!regionId) return;
@@ -111,6 +114,38 @@ export default function PanelLabelCheckRegionPage() {
   });
   const searching = searchQuery.trim().length > 0;
   const filtering = statusFilter !== "all";
+  const showScrollControls = !loading && filteredPanels.length >= 5;
+  const showScrollUp = showScrollControls && scrollCanGoUp;
+  const showScrollDown = showScrollControls && scrollCanGoDown;
+
+  useEffect(() => {
+    if (!showScrollControls) {
+      setScrollCanGoUp(false);
+      setScrollCanGoDown(false);
+      return;
+    }
+
+    function update() {
+      const scrollY = window.scrollY;
+      const maxScroll = Math.max(
+        0,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      const threshold = 96;
+      setScrollCanGoUp(scrollY > threshold);
+      setScrollCanGoDown(scrollY < maxScroll - threshold);
+    }
+
+    update();
+    const raf = requestAnimationFrame(update);
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [showScrollControls, filteredPanels.length, searchQuery, statusFilter]);
 
   if (notFound) {
     return (
@@ -249,7 +284,96 @@ export default function PanelLabelCheckRegionPage() {
           </ul>
         )}
       </div>
+
+      {(showScrollUp || showScrollDown) && (
+        <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40 flex flex-col gap-2">
+          {showScrollUp && (
+            <ScrollFab
+              direction="up"
+              label="Yukarı çık"
+              onClick={scrollToPageTop}
+            />
+          )}
+          {showScrollDown && (
+            <ScrollFab
+              direction="down"
+              label="Aşağı in"
+              onClick={scrollToPageBottom}
+            />
+          )}
+        </div>
+      )}
     </>
+  );
+}
+
+function scrollToPageTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+
+function scrollToPageBottom() {
+  const top = Math.max(
+    document.documentElement.scrollHeight,
+    document.body.scrollHeight,
+  ) - window.innerHeight;
+  window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "auto" });
+}
+
+function ScrollFab({
+  direction,
+  label,
+  onClick,
+}: {
+  direction: "up" | "down";
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-12 w-12 touch-manipulation items-center justify-center rounded-full border-2 border-zinc-200 bg-white/95 text-zinc-700 shadow-lg backdrop-blur-sm transition active:scale-95 active:bg-zinc-50"
+      aria-label={label}
+      title={label}
+    >
+      {direction === "up" ? <ChevronUpIcon /> : <ChevronDownIcon />}
+    </button>
+  );
+}
+
+function ChevronUpIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
   );
 }
 

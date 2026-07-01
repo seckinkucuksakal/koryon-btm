@@ -20,6 +20,7 @@ type Props = {
   index: number;
   onClose: () => void;
   onIndexChange: (index: number) => void;
+  onDelete?: () => Promise<void> | void;
 };
 
 const MIN_SCALE = 1;
@@ -32,8 +33,11 @@ export default function LocalPhotoLightbox({
   index,
   onClose,
   onIndexChange,
+  onDelete,
 }: Props) {
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
@@ -75,6 +79,43 @@ export default function LocalPhotoLightbox({
     setScale(1);
     setOffset({ x: 0, y: 0 });
   }, [index]);
+
+  useEffect(() => {
+    if (!photo?.url) {
+      setImageReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    setImageReady(false);
+
+    const img = new Image();
+    const markReady = () => {
+      if (!cancelled) setImageReady(true);
+    };
+
+    img.onload = markReady;
+    img.onerror = markReady;
+    img.src = photo.url;
+    if (img.complete) markReady();
+
+    return () => {
+      cancelled = true;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [index, photo?.url]);
+
+  useEffect(() => {
+    if (total <= 1) return;
+    for (const step of [-1, 1]) {
+      const i = (index + step + total) % total;
+      const url = photos[i]?.url;
+      if (!url) continue;
+      const preload = new Image();
+      preload.src = url;
+    }
+  }, [index, photos, total]);
 
   const zoomTo = useCallback(
     (
@@ -311,6 +352,16 @@ export default function LocalPhotoLightbox({
     else zoomTo(DBL_TAP_SCALE, e.clientX, e.clientY);
   }
 
+  async function handleDelete() {
+    if (!onDelete || deleting) return;
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function handleDownload() {
     if (!photo) return;
     setDownloading(true);
@@ -387,12 +438,22 @@ export default function LocalPhotoLightbox({
         </ToolbarButton>
         <ToolbarButton
           onClick={handleDownload}
-          disabled={downloading}
+          disabled={downloading || deleting}
           label="İndir"
         >
           {downloading ? <Spinner /> : <DownloadIcon />}
         </ToolbarButton>
-        <ToolbarButton onClick={onClose} label="Kapat">
+        {onDelete && (
+          <ToolbarButton
+            onClick={handleDelete}
+            disabled={deleting || downloading}
+            label="Sil"
+            destructive
+          >
+            {deleting ? <Spinner /> : <TrashIcon />}
+          </ToolbarButton>
+        )}
+        <ToolbarButton onClick={onClose} disabled={deleting} label="Kapat">
           <CloseIcon />
         </ToolbarButton>
       </header>
@@ -409,19 +470,39 @@ export default function LocalPhotoLightbox({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <img
-          src={photo.url}
-          alt={photo.label ?? `Fotoğraf ${index + 1}`}
-          draggable={false}
-          style={{
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-            transition: dragRef.current ? "none" : "transform 0.18s ease-out",
-            cursor:
-              scale === 1 ? "zoom-in" : dragRef.current ? "grabbing" : "grab",
-            willChange: "transform",
-          }}
-          className="absolute inset-0 m-auto max-h-full max-w-full object-contain"
-        />
+        {!imageReady && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3"
+            role="status"
+            aria-live="polite"
+            aria-label="Görsel yükleniyor"
+          >
+            <Spinner large />
+            <p className="text-sm font-medium text-zinc-300">Yükleniyor…</p>
+            {total > 1 && (
+              <p className="text-xs tabular-nums text-zinc-500">
+                {index + 1} / {total}
+              </p>
+            )}
+          </div>
+        )}
+
+        {imageReady && (
+          <img
+            key={photo.url}
+            src={photo.url}
+            alt={photo.label ?? `Fotoğraf ${index + 1}`}
+            draggable={false}
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+              transition: dragRef.current ? "none" : "transform 0.18s ease-out",
+              cursor:
+                scale === 1 ? "zoom-in" : dragRef.current ? "grabbing" : "grab",
+              willChange: "transform",
+            }}
+            className="absolute inset-0 m-auto max-h-full max-w-full object-contain"
+          />
+        )}
 
         {total > 1 && scale <= 1 && (
           <>
@@ -447,11 +528,13 @@ function ToolbarButton({
   onClick,
   disabled,
   label,
+  destructive,
   children,
 }: {
   onClick: () => void;
   disabled?: boolean;
   label: string;
+  destructive?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -461,7 +544,11 @@ function ToolbarButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white transition active:bg-white/20 disabled:opacity-30"
+      className={`flex h-11 w-11 items-center justify-center rounded-xl transition disabled:opacity-30 ${
+        destructive
+          ? "bg-rose-500/20 text-rose-200 active:bg-rose-500/35"
+          : "bg-white/10 text-white active:bg-white/20"
+      }`}
     >
       {children}
     </button>
@@ -494,6 +581,15 @@ function CloseIcon() {
     <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }
@@ -545,8 +641,12 @@ function ChevronRightIcon() {
   );
 }
 
-function Spinner() {
+function Spinner({ large }: { large?: boolean }) {
   return (
-    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+    <div
+      className={`animate-spin rounded-full border-2 border-white/30 border-t-white ${
+        large ? "h-10 w-10 border-[3px]" : "h-5 w-5"
+      }`}
+    />
   );
 }

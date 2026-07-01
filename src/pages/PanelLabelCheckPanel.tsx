@@ -239,7 +239,8 @@ export default function PanelLabelCheckPanelPage() {
                 Pano Durumu
               </h2>
               <p className="mt-1 text-sm text-zinc-500">
-                Nötr, işlemde veya tamamlandı — bölge rengi buna göre değişir.
+                Beklemede pano gri kalır; diğer durumlar listede renkli
+                görünür.
               </p>
               <div className="mt-4">
                 <PanelWorkflowStatusButtons
@@ -296,6 +297,8 @@ export default function PanelLabelCheckPanelPage() {
 
             <PanelLabelImageSection
               panelId={panelId!}
+              regionName={regionName}
+              panelName={panelName}
               category="tek_hat"
               heading="Tek Hat"
               hint="Tek hat şeması görselleri ve PDF dosyaları"
@@ -305,6 +308,8 @@ export default function PanelLabelCheckPanelPage() {
 
             <PanelLabelImageSection
               panelId={panelId!}
+              regionName={regionName}
+              panelName={panelName}
               category="pano_ici"
               heading="Pano İçi"
               hint="Pano içi fotoğraflar ve PDF dosyaları"
