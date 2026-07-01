@@ -7,6 +7,9 @@ type Props = {
   title?: string | null;
   onOpen: () => void;
   onDelete?: () => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 };
 
 export default function PanelAssetTile({
@@ -15,16 +18,32 @@ export default function PanelAssetTile({
   title,
   onOpen,
   onDelete,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
 }: Props) {
   const isPdf = isPanelAssetPdf(mimeType);
+
+  function handleClick() {
+    if (selectionMode) {
+      onToggleSelect?.();
+      return;
+    }
+    onOpen();
+  }
 
   return (
     <div className="flex flex-col gap-1">
       <div className="relative">
         <button
           type="button"
-          onClick={onOpen}
-          className="block w-full overflow-hidden rounded-xl active:opacity-80 md:hover:opacity-90"
+          onClick={handleClick}
+          aria-pressed={selectionMode ? selected : undefined}
+          className={`block w-full overflow-hidden rounded-xl active:opacity-80 md:hover:opacity-90 ${
+            selectionMode && selected
+              ? "ring-2 ring-zinc-900 ring-offset-2"
+              : ""
+          }`}
         >
           {isPdf ? (
             <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-zinc-200 bg-gradient-to-br from-red-50 to-zinc-50">
@@ -41,7 +60,30 @@ export default function PanelAssetTile({
             />
           )}
         </button>
-        {onDelete && (
+        {selectionMode && (
+          <div
+            className={`pointer-events-none absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md border-2 shadow-sm ${
+              selected
+                ? "border-zinc-900 bg-zinc-900 text-white"
+                : "border-white bg-white/90 text-transparent"
+            }`}
+            aria-hidden
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+        )}
+        {!selectionMode && onDelete && (
           <button
             type="button"
             onClick={(e) => {
@@ -72,7 +114,7 @@ export default function PanelAssetTile({
             {title}
           </div>
         )}
-        {isPdf && (
+        {isPdf && !selectionMode && (
           <div className="pointer-events-none absolute left-1.5 top-1.5 rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
             PDF
           </div>

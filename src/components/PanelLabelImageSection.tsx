@@ -57,9 +57,35 @@ export default function PanelLabelImageSection({
   const [pdfViewer, setPdfViewer] = useState<PanelLabelImage | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const dragDepthRef = useRef(0);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const imageItems = images.filter((img) => !isPanelAssetPdf(img.mimeType));
-  const dropDisabled = uploading || downloadingZip;
+  const dropDisabled = uploading || downloadingZip || selectionMode;
+  const selectedCount = selectedIds.size;
+  const allSelected = images.length > 0 && selectedCount === images.length;
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(images.map((img) => img.id)));
+  }
 
   function filterAcceptableFiles(files: File[]): File[] {
     return files.filter(isAcceptablePanelAssetFile);
@@ -170,6 +196,43 @@ export default function PanelLabelImageSection({
     }
   }
 
+  async function handleBulkDelete() {
+    if (selectedCount === 0) return;
+
+    const label =
+      selectedCount === 1 ? "1 dosya" : `${selectedCount} dosya`;
+    const ok = await confirm({
+      title: "Seçili dosyaları sil",
+      message: `${label} silinsin mi?`,
+      confirmText: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const ids = [...selectedIds];
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const id of ids) {
+        await deletePanelImage(id);
+      }
+
+      if (pdfViewer && ids.includes(pdfViewer.id)) setPdfViewer(null);
+
+      if (lightboxIndex !== null) {
+        const current = imageItems[lightboxIndex];
+        if (current && ids.includes(current.id)) setLightboxIndex(null);
+      }
+
+      exitSelectionMode();
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Silme başarısız.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function handleDeleteImage(image: PanelLabelImage) {
     const label =
       image.title?.trim() ||
@@ -268,7 +331,7 @@ export default function PanelLabelImageSection({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={uploading || downloadingZip}
+          disabled={uploading || downloadingZip || selectionMode}
           onClick={() => cameraRef.current?.click()}
           className="rounded-xl border-2 border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800 disabled:opacity-50"
         >
@@ -276,7 +339,7 @@ export default function PanelLabelImageSection({
         </button>
         <button
           type="button"
-          disabled={uploading || downloadingZip}
+          disabled={uploading || downloadingZip || selectionMode}
           onClick={() => galleryRef.current?.click()}
           className="rounded-xl border-2 border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800 disabled:opacity-50"
         >
@@ -284,12 +347,49 @@ export default function PanelLabelImageSection({
         </button>
         <button
           type="button"
-          disabled={uploading || downloadingZip}
+          disabled={uploading || downloadingZip || selectionMode}
           onClick={() => pdfRef.current?.click()}
           className="rounded-xl border-2 border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800 disabled:opacity-50"
         >
           PDF ekle
         </button>
+        {images.length > 0 && !selectionMode && (
+          <button
+            type="button"
+            disabled={uploading || downloadingZip}
+            onClick={() => setSelectionMode(true)}
+            className="rounded-xl border-2 border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 disabled:opacity-50"
+          >
+            Seç
+          </button>
+        )}
+        {selectionMode && (
+          <>
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="rounded-xl border-2 border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800"
+            >
+              {allSelected ? "Seçimi kaldır" : "Tümünü seç"}
+            </button>
+            <button
+              type="button"
+              disabled={selectedCount === 0 || deleting}
+              onClick={() => void handleBulkDelete()}
+              className="rounded-xl border-2 border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-800 disabled:opacity-50"
+            >
+              Sil{selectedCount > 0 ? ` (${selectedCount})` : ""}
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={exitSelectionMode}
+              className="rounded-xl border-2 border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 disabled:opacity-50"
+            >
+              İptal
+            </button>
+          </>
+        )}
         <input
           ref={cameraRef}
           type="file"
@@ -343,22 +443,27 @@ export default function PanelLabelImageSection({
                   path={image.storagePath}
                   mimeType={image.mimeType}
                   title={image.title || undefined}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(image.id)}
+                  onToggleSelect={() => toggleSelected(image.id)}
                   onOpen={() => openAsset(image)}
                   onDelete={() => void handleDeleteImage(image)}
                 />
-                <EditableTitle
-                  value={image.title}
-                  onSave={async (next) => {
-                    await updatePanelImageTitle(image.id, next);
-                    onChange();
-                  }}
-                  ariaLabel="Dosya adını düzenle"
-                  placeholder="Dosya adı"
-                  allowEmpty
-                  className="mt-1 block w-full break-words rounded-md px-1 py-0.5 text-left text-xs font-medium leading-relaxed text-zinc-600 active:bg-zinc-100"
-                  inputClassName="w-full rounded-lg border border-zinc-300 px-2 py-1 text-xs outline-none focus:border-zinc-500"
-                  emptyClassName="italic text-zinc-400"
-                />
+                {!selectionMode && (
+                  <EditableTitle
+                    value={image.title}
+                    onSave={async (next) => {
+                      await updatePanelImageTitle(image.id, next);
+                      onChange();
+                    }}
+                    ariaLabel="Dosya adını düzenle"
+                    placeholder="Dosya adı"
+                    allowEmpty
+                    className="mt-1 block w-full break-words rounded-md px-1 py-0.5 text-left text-xs font-medium leading-relaxed text-zinc-600 active:bg-zinc-100"
+                    inputClassName="w-full rounded-lg border border-zinc-300 px-2 py-1 text-xs outline-none focus:border-zinc-500"
+                    emptyClassName="italic text-zinc-400"
+                  />
+                )}
               </div>
             ))}
           </div>
