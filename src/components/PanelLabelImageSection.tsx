@@ -61,7 +61,8 @@ export default function PanelLabelImageSection({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const imageItems = images.filter((img) => !isPanelAssetPdf(img.mimeType));
-  const dropDisabled = uploading || downloadingZip || selectionMode;
+  const busyDisabled = uploading || downloadingZip;
+  const dragDropDisabled = busyDisabled || selectionMode;
   const selectedCount = selectedIds.size;
   const allSelected = images.length > 0 && selectedCount === images.length;
 
@@ -116,7 +117,7 @@ export default function PanelLabelImageSection({
   }
 
   async function handleDroppedFiles(files: File[]) {
-    if (dropDisabled) return;
+    if (dragDropDisabled) return;
     const picked = filterAcceptableFiles(files);
     if (picked.length === 0) {
       setError("Lütfen görsel veya PDF dosyası sürükleyin.");
@@ -137,7 +138,7 @@ export default function PanelLabelImageSection({
   function onDragEnter(e: React.DragEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (dropDisabled) return;
+    if (dragDropDisabled) return;
     dragDepthRef.current += 1;
     setDragActive(true);
   }
@@ -155,7 +156,7 @@ export default function PanelLabelImageSection({
   function onDragOver(e: React.DragEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (!dropDisabled) e.dataTransfer.dropEffect = "copy";
+    if (!dragDropDisabled) e.dataTransfer.dropEffect = "copy";
   }
 
   function onDrop(e: React.DragEvent) {
@@ -163,7 +164,7 @@ export default function PanelLabelImageSection({
     e.stopPropagation();
     dragDepthRef.current = 0;
     setDragActive(false);
-    if (dropDisabled) return;
+    if (dragDropDisabled) return;
     void handleDroppedFiles(Array.from(e.dataTransfer.files));
   }
 
@@ -423,7 +424,7 @@ export default function PanelLabelImageSection({
           dragActive
             ? "border-zinc-900 bg-zinc-100"
             : "border-zinc-200 bg-transparent"
-        } ${dropDisabled ? "pointer-events-none opacity-60" : ""}`}
+        } ${busyDisabled ? "pointer-events-none opacity-60" : ""}`}
         onDragEnter={onDragEnter}
         onDragLeave={onDragLeave}
         onDragOver={onDragOver}
