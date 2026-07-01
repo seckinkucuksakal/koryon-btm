@@ -84,7 +84,7 @@ export async function downloadPanelImagesZip(options: {
   images: PanelLabelImage[];
   onProgress?: (done: number, total: number) => void;
 }): Promise<void> {
-  const { regionName, panelName, category, images, onProgress } = options;
+  const { regionName, panelName, images, onProgress } = options;
   if (images.length === 0) {
     throw new Error("İndirilecek dosya yok.");
   }
